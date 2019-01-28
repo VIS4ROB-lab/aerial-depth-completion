@@ -26,8 +26,8 @@ best_result.set_to_worst()
 def create_data_loaders(args):
     # Data loading code
     print("=> creating data loaders ...")
-    traindir = os.path.join('data', args.data, 'train')
-    valdir = os.path.join('data', args.data, 'val')
+    traindir = os.path.join(args.data_path, args.data, 'train')
+    valdir = os.path.join(args.data_path, args.data, 'val')
     train_loader = None
     val_loader = None
 
@@ -53,6 +53,14 @@ def create_data_loaders(args):
             train_dataset = KITTIDataset(traindir, type='train',
                 modality=args.modality, sparsifier=sparsifier)
         val_dataset = KITTIDataset(valdir, type='val',
+            modality=args.modality, sparsifier=sparsifier)
+
+    elif args.data == 'visim':
+        from dataloaders.visim_dataloader import VISIMDataset
+        if not args.evaluate:
+            train_dataset = VISIMDataset(traindir, type='train',
+                modality=args.modality, sparsifier=sparsifier)
+        val_dataset = VISIMDataset(valdir, type='val',
             modality=args.modality, sparsifier=sparsifier)
 
     else:
