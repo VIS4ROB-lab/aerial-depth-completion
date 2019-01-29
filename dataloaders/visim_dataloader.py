@@ -1,12 +1,12 @@
 import numpy as np
 import dataloaders.transforms as transforms
-from dataloaders.dataloader import MyDataloader
+from dataloaders.dataloader_ext import MyDataloaderExt
 
 iheight, iwidth = 480, 752 # raw image size
 
-class VISIMDataset(MyDataloader):
+class VISIMDataset(MyDataloaderExt):
     def __init__(self, root, type, sparsifier=None, modality='rgb'):
-        super(NYUDataset, self).__init__(root, type, sparsifier, modality)
+        super(VISIMDataset, self).__init__(root, type, sparsifier, modality)
         self.output_size = (228, 304)
 
     def train_transform(self, rgb, depth):

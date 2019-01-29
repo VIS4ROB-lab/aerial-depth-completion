@@ -56,6 +56,8 @@ def create_data_loaders(args):
             modality=args.modality, sparsifier=sparsifier)
 
     elif args.data == 'visim':
+        traindir = args.data_path
+        valdir = args.data_path
         from dataloaders.visim_dataloader import VISIMDataset
         if not args.evaluate:
             train_dataset = VISIMDataset(traindir, type='train',
