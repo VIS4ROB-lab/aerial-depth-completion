@@ -94,6 +94,10 @@ class MyDataloaderExt(data.Dataset):
         """
         path, target = self.imgs[index]
         rgb, depth = self.loader(path)
+
+        mask_array = depth > 5000
+        depth[mask_array] = 0
+
         return rgb, depth
 
     def __getitem__(self, index):
