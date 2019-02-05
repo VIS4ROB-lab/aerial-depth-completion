@@ -59,13 +59,13 @@ class MyDataloaderExt(data.Dataset):
                                 "Supported dataset types are: " + ''.join(self.modality_names)
         self.modality = modality
 
-    def train_transform(self, rgb, depth):
+    def train_transform(self, rgb, input_depth, targe_depth):
         raise (RuntimeError("train_transform() is not implemented. "))
 
     def val_transform(rgb, depth):
         raise (RuntimeError("val_transform() is not implemented."))
 
-    def create_sparse_depth(self, rgb, depth):
+    def create_sparse_depth(self, rgb, input_depth, targe_depth):
         if self.sparsifier is None:
             return depth
         else:
@@ -119,7 +119,7 @@ class MyDataloaderExt(data.Dataset):
                     sparse_input[xp,yp] = row[3]
             else:
                 raise (RuntimeError("transform not defined"))
-        return rgb, depth
+        return rgb, sparse_input, depth
 
 
 
@@ -158,12 +158,12 @@ class MyDataloaderExt(data.Dataset):
             elif self.modality == 'd':
                 input_np = self.create_sparse_depth(rgb_np, depth_np)
         else:
-            rgb, depth = self.h5_loader_slam_keypoints(index,self.modality)
+            rgb, sparse_input, depth = self.h5_loader_slam_keypoints(index,self.modality)
             if self.transform is not None:
-                rgb_np, depth_np = self.transform(rgb, depth)
+                rgb_np, sparse_input_np, depth_np = self.transform(rgb, sparse_input, depth)
             else:
                 raise (RuntimeError("transform not defined"))
-            input_np = self.pack_rgbd(rgb_np, depth_np)
+            input_np = self.pack_rgbd(rgb_np, sparse_input_np)
 
         input_tensor = totensor(input_np)
         while input_tensor.dim() < 3:
