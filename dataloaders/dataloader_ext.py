@@ -28,7 +28,7 @@ def load_files_list(path):
 totensor = transforms.ToTensor()
 
 class MyDataloaderExt(data.Dataset):
-    modality_names = ['rgb', 'rgbd', 'd','keypoint_original','keypoint_gt','keypoint_denoise'] # , 'g', 'gd'
+    modality_names = ['rgb', 'rgbd', 'd','keypoint_original','keypoint_gt','keypoint_denoise','dense_original','dense_denoise'] # , 'g', 'gd'
     color_jitter = transforms.ColorJitter(0.4, 0.4, 0.4)
 
     def __init__(self, root, type, sparsifier=None, modality='rgb'):
@@ -84,6 +84,7 @@ class MyDataloaderExt(data.Dataset):
         return rgbd
 
     def h5_loader_original(self,index):
+        raise (RuntimeError("todo"))
         path, target = self.imgs[index]
         h5f = h5py.File(path, "r")
         rgb = np.array(h5f['rgb_image_data'])
@@ -118,8 +119,26 @@ class MyDataloaderExt(data.Dataset):
                 if(row[3] > 0):
                     sparse_input[xp,yp] = row[3]
             else:
-                raise (RuntimeError("transform not defined"))
+                raise (RuntimeError("type input sparse not defined"))
         return rgb, sparse_input, depth
+
+    def h5_loader_slam_dense(self,index,type):
+        path, target = self.imgs[index]
+        h5f = h5py.File(path, "r")
+        rgb = np.array(h5f['rgb_image_data'])
+        rgb = np.transpose(rgb, (1, 2, 0))
+        dense_data = h5f['dense_image_data']
+        depth = np.array(dense_data[0, :, :])
+        mask_array = depth > 5000
+        depth[mask_array] = 0
+
+        if type == 'dense_original':
+            prior_depth_input = np.array(dense_data[1, :, :])
+        elif type == 'dense_denoise':
+            prior_depth_input = np.array(dense_data[4, :, :])
+        else:
+            raise (RuntimeError("type input sparse not defined"))
+        return rgb, prior_depth_input, depth
 
 
 
@@ -157,6 +176,13 @@ class MyDataloaderExt(data.Dataset):
                 input_np = self.create_rgbd(rgb_np, depth_np)
             elif self.modality == 'd':
                 input_np = self.create_sparse_depth(rgb_np, depth_np)
+        elif self.modality == 'dense_original' or self.modality == 'dense_denoise' :
+            rgb, sparse_input, depth = self.h5_loader_slam_dense(index, self.modality)
+            if self.transform is not None:
+                rgb_np, sparse_input_np, depth_np = self.transform(rgb, sparse_input, depth)
+            else:
+                raise (RuntimeError("transform not defined"))
+            input_np = self.pack_rgbd(rgb_np, sparse_input_np)
         else:
             rgb, sparse_input, depth = self.h5_loader_slam_keypoints(index,self.modality)
             if self.transform is not None:
