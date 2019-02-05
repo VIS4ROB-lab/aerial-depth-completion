@@ -125,7 +125,7 @@ def main():
     else:
         train_loader, val_loader = create_data_loaders(args)
         print("=> creating Model ({}-{}) ...".format(args.arch, args.decoder))
-        in_channels = len(args.modality)
+        in_channels = len('rgbd')
         if args.arch == 'resnet50':
             model = ResNet(layers=50, decoder=args.decoder, output_size=train_loader.dataset.output_size,
                 in_channels=in_channels, pretrained=args.pretrained)
@@ -258,26 +258,26 @@ def validate(val_loader, model, epoch, write_to_file=True):
         end = time.time()
 
         # save 8 images for visualization
-        skip = 50
+        skip = 30
         if args.modality == 'd':
             img_merge = None
         else:
             if args.modality == 'rgb':
                 rgb = input
-            elif args.modality == 'rgbd':
+            else:
                 rgb = input[:,:3,:,:]
                 depth = input[:,3:,:,:]
 
             if i == 0:
-                if args.modality == 'rgbd':
-                    img_merge = utils.merge_into_row_with_gt(rgb, depth, target, pred)
-                else:
+                if args.modality == 'rgb':
                     img_merge = utils.merge_into_row(rgb, target, pred)
-            elif (i < 8*skip) and (i % skip == 0):
-                if args.modality == 'rgbd':
-                    row = utils.merge_into_row_with_gt(rgb, depth, target, pred)
                 else:
+                    img_merge = utils.merge_into_row_with_gt(rgb, depth, target, pred)
+            elif (i < 8*skip) and (i % skip == 0):
+                if args.modality == 'rgb':
                     row = utils.merge_into_row(rgb, target, pred)
+                else:
+                    row = utils.merge_into_row_with_gt(rgb, depth, target, pred)
                 img_merge = utils.add_row(img_merge, row)
             elif i == 8*skip:
                 filename = output_directory + '/comparison_' + str(epoch) + '.png'

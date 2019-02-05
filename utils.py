@@ -15,8 +15,8 @@ def parse_command():
     sparsifier_names = [x.name for x in [UniformSampling, SimulatedStereo]]
     from models import Decoder
     decoder_names = Decoder.names
-    from dataloaders.dataloader import MyDataloader
-    modality_names = MyDataloader.modality_names
+    from dataloaders.dataloader_ext import MyDataloaderExt
+    modality_names = MyDataloaderExt.modality_names
 
     import argparse
     parser = argparse.ArgumentParser(description='Sparse-to-Dense')

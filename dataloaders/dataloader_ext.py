@@ -5,19 +5,14 @@ import torch.utils.data as data
 import h5py
 import csv 
 import dataloaders.transforms as transforms
+import math
 
 IMG_EXTENSIONS = ['.h5',]
 
 def is_image_file(filename):
     return any(filename.endswith(extension) for extension in IMG_EXTENSIONS)
 
-def h5_loader_ext(path):
-    h5f = h5py.File(path, "r")
-    rgb = np.array(h5f['rgb_image_data'])
-    rgb = np.transpose(rgb, (1, 2, 0))
-    dense_data = h5f['dense_image_data']
-    depth = np.array(dense_data[0,:,:])
-    return rgb, depth
+
     
 def load_files_list(path):
     images = []    
@@ -33,10 +28,10 @@ def load_files_list(path):
 totensor = transforms.ToTensor()
 
 class MyDataloaderExt(data.Dataset):
-    modality_names = ['rgb', 'rgbd', 'd'] # , 'g', 'gd'
+    modality_names = ['rgb', 'rgbd', 'd','keypoint_original','keypoint_gt','keypoint_denoise'] # , 'g', 'gd'
     color_jitter = transforms.ColorJitter(0.4, 0.4, 0.4)
 
-    def __init__(self, root, type, sparsifier=None, modality='rgb', loader=h5_loader_ext):
+    def __init__(self, root, type, sparsifier=None, modality='rgb'):
         
         imgs = []
         if type == 'train':
@@ -57,7 +52,7 @@ class MyDataloaderExt(data.Dataset):
 #        self.classes = classes
 #        self.class_to_idx = class_to_idx
         
-        self.loader = loader
+
         self.sparsifier = sparsifier
 
         assert (modality in self.modality_names), "Invalid modality type: " + modality + "\n" + \
@@ -84,39 +79,91 @@ class MyDataloaderExt(data.Dataset):
         rgbd = np.append(rgb, np.expand_dims(sparse_depth, axis=2), axis=2)
         return rgbd
 
-    def __getraw__(self, index):
-        """
-        Args:
-            index (int): Index
+    def pack_rgbd(self, rgb, depth):
+        rgbd = np.append(rgb, np.expand_dims(depth, axis=2), axis=2)
+        return rgbd
 
-        Returns:
-            tuple: (rgb, depth) the raw data.
-        """
+    def h5_loader_original(self,index):
         path, target = self.imgs[index]
-        rgb, depth = self.loader(path)
-
+        h5f = h5py.File(path, "r")
+        rgb = np.array(h5f['rgb_image_data'])
+        rgb = np.transpose(rgb, (1, 2, 0))
+        dense_data = h5f['dense_image_data']
+        depth = np.array(dense_data[0, :, :])
         mask_array = depth > 5000
         depth[mask_array] = 0
-
         return rgb, depth
 
+    def h5_loader_slam_keypoints(self,index,type):
+        path, target = self.imgs[index]
+        h5f = h5py.File(path, "r")
+        rgb = np.array(h5f['rgb_image_data'])
+        rgb = np.transpose(rgb, (1, 2, 0))
+        dense_data = h5f['dense_image_data']
+        depth = np.array(dense_data[0, :, :])
+        mask_array = depth > 5000
+        depth[mask_array] = 0
+        data_2d = np.array(h5f['landmark_2d_data'])
+        sparse_input = np.zeros_like(depth)
+        for row in data_2d:
+            xp = int(math.floor(row[1]))
+            yp = int(math.floor(row[0]))
+            if type == 'keypoint_gt':
+                if(depth[xp,yp] > 0):
+                    sparse_input[xp,yp] = depth[xp,yp]
+            elif type == 'keypoint_original':
+                if(row[2] > 0):
+                    sparse_input[xp,yp] = row[2]
+            elif type == 'keypoint_denoise':
+                if(row[3] > 0):
+                    sparse_input[xp,yp] = row[3]
+            else:
+                raise (RuntimeError("transform not defined"))
+        return rgb, depth
+
+
+
+    # def __getraw__(self, index):
+    #     """
+    #     Args:
+    #         index (int): Index
+    #
+    #     Returns:
+    #         tuple: (rgb, depth) the raw data.
+    #     """
+    #     path, target = self.imgs[index]
+    #     rgb, depth = self.loader(path)
+    #
+    #     return rgb, depth
+
     def __getitem__(self, index):
-        rgb, depth = self.__getraw__(index)
-        if self.transform is not None:
-            rgb_np, depth_np = self.transform(rgb, depth)
+
+        input_np =[]
+
+        if self.modality == 'rgb' or self.modality == 'rgbd' or self.modality == 'd':
+            rgb, depth = self.h5_loader_original(index)
+            if self.transform is not None:
+                rgb_np, depth_np = self.transform(rgb, depth)
+            else:
+                raise(RuntimeError("transform not defined"))
+
+            # color normalization
+            # rgb_tensor = normalize_rgb(rgb_tensor)
+            # rgb_np = normalize_np(rgb_np)
+
+            if self.modality == 'rgb':
+                input_np = rgb_np
+            elif self.modality == 'rgbd':
+                input_np = self.create_rgbd(rgb_np, depth_np)
+            elif self.modality == 'd':
+                input_np = self.create_sparse_depth(rgb_np, depth_np)
         else:
-            raise(RuntimeError("transform not defined"))
-
-        # color normalization
-        # rgb_tensor = normalize_rgb(rgb_tensor)
-        # rgb_np = normalize_np(rgb_np)
-
-        if self.modality == 'rgb':
-            input_np = rgb_np
-        elif self.modality == 'rgbd':
-            input_np = self.create_rgbd(rgb_np, depth_np)
-        elif self.modality == 'd':
-            input_np = self.create_sparse_depth(rgb_np, depth_np)
+            rgb, depth = self.h5_loader_slam_keypoints(index,self.modality)
+            if self.transform is not None:
+                rgb_np, depth_np = self.transform(rgb, depth)
+            else:
+                raise (RuntimeError("transform not defined"))
+            input_np = self.pack_rgbd(rgb_np, depth_np)
 
         input_tensor = totensor(input_np)
         while input_tensor.dim() < 3:
