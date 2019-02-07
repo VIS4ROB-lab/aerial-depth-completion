@@ -33,7 +33,7 @@ def rgb2grayscale(rgb):
     return rgb[:,:,0] * 0.2989 + rgb[:,:,1] * 0.587 + rgb[:,:,2] * 0.114
 
 class Modality():
-    modality_names = ['rgb', 'grey', 'fd', 'kor', 'kgt', 'kw', 'kde', 'dor', 'dde', 'kvor', 'd2dwor', 'd3dwde']
+    modality_names = ['rgb', 'grey', 'fd', 'kor', 'kgt', 'kw', 'kde', 'dor', 'dde', 'kvor', 'd2dwor', 'd3dwde','d3dwor']
 
     def __init__(self, value):
 
@@ -70,7 +70,7 @@ class Modality():
 
 class MyDataloaderExt(data.Dataset):
     #modality_names = ['rgb', 'rgbd', 'd','keypoint_original','keypoint_gt','keypoint_denoise','dense_original','dense_denoise']
-    modality_names = ['rgb','grey','fd','kor','kgt','kw','kde','dor','dde','kvor','d2dwor','d3dwde','d3dwor']
+    #modality_names = ['rgb','grey','fd','kor','kgt','kw','kde','dor','dde','kvor','d2dwor','d3dwde','d3dwor']
     color_jitter = transforms.ColorJitter(0.4, 0.4, 0.4)
 
     def __init__(self, root, type, sparsifier=None, modality='rgb'):
