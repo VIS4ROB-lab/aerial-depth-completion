@@ -15,8 +15,8 @@ def parse_command():
     sparsifier_names = [x.name for x in [UniformSampling, SimulatedStereo]]
     from models import Decoder
     decoder_names = Decoder.names
-    from dataloaders.dataloader_ext import MyDataloaderExt
-    modality_names = MyDataloaderExt.modality_names
+    from dataloaders.dataloader_ext import Modality
+
 
     import argparse
     parser = argparse.ArgumentParser(description='Sparse-to-Dense')
@@ -27,12 +27,14 @@ def parse_command():
                         help='dataset: ' + ' | '.join(data_names) + ' (default: nyudepthv2)')
     parser.add_argument('--data-path', default='data', type=str, metavar='PATH',
                         help='path to data folder')
-    parser.add_argument('--modality', '-m', metavar='MODALITY', default='rgb', choices=modality_names,
-                        help='modality: ' + ' | '.join(modality_names) + ' (default: rgb)')
+    parser.add_argument('--modality', '-m', metavar='MODALITY', default='rgb', type=str,
+                        help='modality: ' + ' | '.join(Modality.modality_names) + ' (default: rgb-fd)')
     parser.add_argument('-s', '--num-samples', default=0, type=int, metavar='N',
                         help='number of sparse depth samples (default: 0)')
     parser.add_argument('--max-depth', default=-1.0, type=float, metavar='D',
                         help='cut-off depth of sparsifier, negative values means infinity (default: inf [m])')
+    parser.add_argument('--depth-divider', default=1.0, type=float, metavar='D',
+                        help='Normalization factor (default: 1.0 [m])')
     parser.add_argument('--sparsifier', metavar='SPARSIFIER', default=UniformSampling.name, choices=sparsifier_names,
                         help='sparsifier: ' + ' | '.join(sparsifier_names) + ' (default: ' + UniformSampling.name + ')')
     parser.add_argument('--decoder', '-d', metavar='DECODER', default='deconv2', choices=decoder_names,
@@ -60,12 +62,14 @@ def parse_command():
                         help='not to use ImageNet pre-trained weights')
     parser.set_defaults(pretrained=True)
     args = parser.parse_args()
-    if args.modality == 'rgb' and args.num_samples != 0:
-        print("number of samples is forced to be 0 when input modality is rgb")
-        args.num_samples = 0
-    if args.modality == 'rgb' and args.max_depth != 0.0:
-        print("max depth is forced to be 0.0 when input modality is rgb/rgbd")
-        args.max_depth = 0.0
+
+    if not Modality.validate_static(args.modality):
+        print("input modality with problem")
+        exit(0)
+
+    # if args.modality == 'rgb' and args.max_depth != 0.0:
+    #     print("max depth is forced to be 0.0 when input modality is rgb/rgbd")
+    #     args.max_depth = 0.0
     return args
 
 def save_checkpoint(state, is_best, epoch, output_directory):
@@ -87,9 +91,9 @@ def adjust_learning_rate(optimizer, epoch, lr_init):
 
 def get_output_directory(args):
     output_directory = os.path.join('results',
-        '{}.sparsifier={}.samples={}.modality={}.arch={}.decoder={}.criterion={}.lr={}.bs={}.pretrained={}'.
+        '{}.sparsifier={}.samples={}.modality={}.arch={}.decoder={}.criterion={}.divider={}.lr={}.bs={}.pretrained={}'.
         format(args.data, args.sparsifier, args.num_samples, args.modality, \
-            args.arch, args.decoder, args.criterion, args.lr, args.batch_size, \
+            args.arch, args.decoder, args.criterion, args.depth_divider, args.lr, args.batch_size, \
             args.pretrained))
     return output_directory
 

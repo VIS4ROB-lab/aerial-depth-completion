@@ -13,9 +13,11 @@ from metrics import AverageMeter, Result
 from dataloaders.dense_to_sparse import UniformSampling, SimulatedStereo
 import criteria
 import utils
+from dataloaders.dataloader_ext import Modality
 
 args = utils.parse_command()
 print(args)
+g_modality = Modality(args.modality)
 
 fieldnames = ['mse', 'rmse', 'absrel', 'lg10', 'mae',
                 'delta1', 'delta2', 'delta3',
@@ -61,9 +63,9 @@ def create_data_loaders(args):
         from dataloaders.visim_dataloader import VISIMDataset
         if not args.evaluate:
             train_dataset = VISIMDataset(traindir, type='train',
-                modality=args.modality, sparsifier=sparsifier)
+                modality=args.modality, sparsifier=sparsifier,depth_divider=args.depth_divider)
         val_dataset = VISIMDataset(valdir, type='val',
-            modality=args.modality, sparsifier=sparsifier)
+            modality=args.modality, sparsifier=sparsifier,depth_divider=args.depth_divider)
 
     else:
         raise RuntimeError('Dataset not found.' +
@@ -123,9 +125,10 @@ def main():
 
     # create new model
     else:
+
         train_loader, val_loader = create_data_loaders(args)
         print("=> creating Model ({}-{}) ...".format(args.arch, args.decoder))
-        in_channels = len('rgbd')
+        in_channels = g_modality.num_channels()
         if args.arch == 'resnet50':
             model = ResNet(layers=50, decoder=args.decoder, output_size=train_loader.dataset.output_size,
                 in_channels=in_channels, pretrained=args.pretrained)
@@ -202,6 +205,9 @@ def train(train_loader, model, criterion, optimizer, epoch):
         end = time.time()
         pred = model(input)
         loss = criterion(pred, target)
+        if loss is None:
+            print('ignoring image, no valid pixel')
+            continue
         optimizer.zero_grad()
         loss.backward() # compute gradient and do SGD step
         optimizer.step()
@@ -210,7 +216,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
 
         # measure accuracy and record loss
         result = Result()
-        result.evaluate(pred.data, target.data)
+        result.evaluate(pred.data*args.depth_divider, target.data*args.depth_divider)
         average_meter.update(result, gpu_time, data_time, input.size(0))
         end = time.time()
 
@@ -253,35 +259,29 @@ def validate(val_loader, model, epoch, write_to_file=True):
 
         # measure accuracy and record loss
         result = Result()
-        result.evaluate(pred.data, target.data)
+        result.evaluate(pred.data*args.depth_divider, target.data*args.depth_divider)
         average_meter.update(result, gpu_time, data_time, input.size(0))
         end = time.time()
 
         # save 8 images for visualization
-        skip = 30
-        if args.modality == 'd':
-            img_merge = None
-        else:
-            if args.modality == 'rgb':
-                rgb = input
-            else:
-                rgb = input[:,:3,:,:]
-                depth = input[:,3:,:,:]
+        skip = 10
+        # if args.modality == 'd':
+        #     img_merge = None
+        # else:
+        #     if args.modality == 'rgb':
+        #         rgb = input
+        #     else:
+        rgb = input[:,:3,:,:]
+        depth = input[:,3:4,:,:]
 
-            if i == 0:
-                if args.modality == 'rgb':
-                    img_merge = utils.merge_into_row(rgb, target, pred)
-                else:
-                    img_merge = utils.merge_into_row_with_gt(rgb, depth, target, pred)
-            elif (i < 8*skip) and (i % skip == 0):
-                if args.modality == 'rgb':
-                    row = utils.merge_into_row(rgb, target, pred)
-                else:
-                    row = utils.merge_into_row_with_gt(rgb, depth, target, pred)
-                img_merge = utils.add_row(img_merge, row)
-            elif i == 8*skip:
-                filename = output_directory + '/comparison_' + str(epoch) + '.png'
-                utils.save_image(img_merge, filename)
+        if i == 0:
+            img_merge = utils.merge_into_row_with_gt(rgb, depth, target, pred)
+        elif (i < 8*skip) and (i % skip == 0):
+            row = utils.merge_into_row_with_gt(rgb, depth, target, pred)
+            img_merge = utils.add_row(img_merge, row)
+        elif i == 8*skip:
+            filename = output_directory + '/comparison_' + str(epoch) + '.png'
+            utils.save_image(img_merge, filename)
 
         if (i+1) % args.print_freq == 0:
             print('Test: [{0}/{1}]\t'
