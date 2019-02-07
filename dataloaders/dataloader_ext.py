@@ -70,7 +70,7 @@ class Modality():
 
 class MyDataloaderExt(data.Dataset):
     #modality_names = ['rgb', 'rgbd', 'd','keypoint_original','keypoint_gt','keypoint_denoise','dense_original','dense_denoise']
-    modality_names = ['rgb','grey','fd','kor','kgt','kw','kde','dor','dde','kvor','d2dwor','d3dwde']
+    modality_names = ['rgb','grey','fd','kor','kgt','kw','kde','dor','dde','kvor','d2dwor','d3dwde','d3dwor']
     color_jitter = transforms.ColorJitter(0.4, 0.4, 0.4)
 
     def __init__(self, root, type, sparsifier=None, modality='rgb'):
@@ -282,7 +282,7 @@ class MyDataloaderExt(data.Dataset):
                 result['d3dwor'] = np.array(dense_data[3, :, :])
 
             if 'd3dwde' in type:
-                result['d3dwde'] = np.array(dense_data[7, :, :])
+                result['d3dwde'] = np.array(dense_data[6, :, :])
 
 
         return result
