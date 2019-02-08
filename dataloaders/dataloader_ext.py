@@ -269,7 +269,7 @@ class MyDataloaderExt(data.Dataset):
         if 'd2dwor' in type:
             raise (RuntimeError("transform not defined"))
 
-        if 'dor' in type or 'dde' in type:
+        if 'dor' in type or 'dde' in type or 'd3dwor' in type or 'd3dwde' in type:
             dense_data = h5f['dense_image_data']
 
             if 'dor' in type:
