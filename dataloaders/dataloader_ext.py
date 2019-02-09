@@ -14,8 +14,6 @@ IMG_EXTENSIONS = ['.h5',]
 def is_image_file(filename):
     return any(filename.endswith(extension) for extension in IMG_EXTENSIONS)
 
-
-    
 def load_files_list(path):
     images = []    
     with open(path, 'r') as csvfile:
@@ -27,8 +25,6 @@ def load_files_list(path):
             images.append(item)
     return images
 
-#totensor = transforms.ToTensor()
-
 def rgb2grayscale(rgb):
     return rgb[:,:,0] * 0.2989 + rgb[:,:,1] * 0.587 + rgb[:,:,2] * 0.114
 
@@ -36,8 +32,6 @@ class Modality():
     modality_names = ['rgb', 'grey', 'fd', 'kor', 'kgt', 'kw', 'kde', 'dor', 'dde', 'kvor', 'd2dwor', 'd3dwde','d3dwor']
 
     def __init__(self, value):
-
-
         self.modalities = value.split('-')
         self.is_valid = self.validate()
         if not self.is_valid:
@@ -69,8 +63,7 @@ class Modality():
         return True
 
 class MyDataloaderExt(data.Dataset):
-    #modality_names = ['rgb', 'rgbd', 'd','keypoint_original','keypoint_gt','keypoint_denoise','dense_original','dense_denoise']
-    #modality_names = ['rgb','grey','fd','kor','kgt','kw','kde','dor','dde','kvor','d2dwor','d3dwde','d3dwor']
+
     color_jitter = transforms.ColorJitter(0.4, 0.4, 0.4)
 
     def __init__(self, root, type, sparsifier=None, modality='rgb'):
@@ -85,20 +78,15 @@ class MyDataloaderExt(data.Dataset):
         else:
             raise (RuntimeError("Invalid dataset type: " + type + "\n"
                                 "Supported dataset types are: train, val"))
-        
-                
+
         assert len(imgs)>0, "Found 0 images in subfolders of: " + root + "\n"
         print("Found {} images in {} folder.".format(len(imgs), type))
         self.root = root
         self.imgs = imgs
 #        self.classes = classes
 #        self.class_to_idx = class_to_idx
-        
 
         self.sparsifier = sparsifier
-
-        # assert (modality in self.modality_names), "Invalid modality type: " + modality + "\n" + \
-        #                         "Supported dataset types are: " + ''.join(self.modality_names)
         self.modality = Modality(modality)
 
 
@@ -117,72 +105,6 @@ class MyDataloaderExt(data.Dataset):
             sparse_depth = np.zeros(targe_depth.shape)
             sparse_depth[mask_keep] = targe_depth[mask_keep]
             return sparse_depth
-
-    # def create_rgbd(self, rgb, depth):
-    #     sparse_depth = self.create_sparse_depth(rgb, depth)
-    #     rgbd = np.append(rgb, np.expand_dims(sparse_depth, axis=2), axis=2)
-    #     return rgbd
-    #
-    # def pack_rgbd(self, rgb, depth):
-    #     rgbd = np.append(rgb, np.expand_dims(depth, axis=2), axis=2)
-    #     return rgbd
-    #
-    # def h5_loader_original(self,index):
-    #     raise (RuntimeError("todo"))
-    #     path, target = self.imgs[index]
-    #     h5f = h5py.File(path, "r")
-    #     rgb = np.array(h5f['rgb_image_data'])
-    #     rgb = np.transpose(rgb, (1, 2, 0))
-    #     dense_data = h5f['dense_image_data']
-    #     depth = np.array(dense_data[0, :, :])
-    #     mask_array = depth > 5000
-    #     depth[mask_array] = 0
-    #     return rgb, depth
-    #
-    # def h5_loader_slam_keypoints(self,index,type):
-    #     path, target = self.imgs[index]
-    #     h5f = h5py.File(path, "r")
-    #     rgb = np.array(h5f['rgb_image_data'])
-    #     rgb = np.transpose(rgb, (1, 2, 0))
-    #     dense_data = h5f['dense_image_data']
-    #     depth = np.array(dense_data[0, :, :])
-    #     mask_array = depth > 5000
-    #     depth[mask_array] = 0
-    #     data_2d = np.array(h5f['landmark_2d_data'])
-    #     sparse_input = np.zeros_like(depth)
-    #     for row in data_2d:
-    #         xp = int(math.floor(row[1]))
-    #         yp = int(math.floor(row[0]))
-    #         if type == 'keypoint_gt':
-    #             if(depth[xp,yp] > 0):
-    #                 sparse_input[xp,yp] = depth[xp,yp]
-    #         elif type == 'keypoint_original':
-    #             if(row[2] > 0):
-    #                 sparse_input[xp,yp] = row[2]
-    #         elif type == 'keypoint_denoise':
-    #             if(row[3] > 0):
-    #                 sparse_input[xp,yp] = row[3]
-    #         else:
-    #             raise (RuntimeError("type input sparse not defined"))
-    #     return rgb, sparse_input, depth
-    #
-    # def h5_loader_slam_dense(self,index,type):
-    #     path, target = self.imgs[index]
-    #     h5f = h5py.File(path, "r")
-    #     rgb = np.array(h5f['rgb_image_data'])
-    #     rgb = np.transpose(rgb, (1, 2, 0))
-    #     dense_data = h5f['dense_image_data']
-    #     depth = np.array(dense_data[0, :, :])
-    #     mask_array = depth > 5000
-    #     depth[mask_array] = 0
-    #
-    #     if type == 'dense_original':
-    #         prior_depth_input = np.array(dense_data[1, :, :])
-    #     elif type == 'dense_denoise':
-    #         prior_depth_input = np.array(dense_data[4, :, :])
-    #     else:
-    #         raise (RuntimeError("type input sparse not defined"))
-    #     return rgb, prior_depth_input, depth
 
 
     # gt_depth - gt depth
