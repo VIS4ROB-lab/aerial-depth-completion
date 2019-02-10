@@ -104,7 +104,7 @@ class DepthCompletionNet(nn.Module):
         self.convtf = conv_bn_relu(in_channels=128, out_channels=1, kernel_size=1, stride=1, bn=False, relu=False)
 
     def forward(self, x):
-        print(x.shape)
+        # print(x.shape)
         d = x[:,3, :, :].unsqueeze(1)
         rgb = x[:,:3, :, :]
 
@@ -130,8 +130,8 @@ class DepthCompletionNet(nn.Module):
 
         # decoder
         convt5 = self.convt5(conv6)
-        print(conv5.shape)
-        print(convt5.shape)
+        # print(conv5.shape)
+        # print(convt5.shape)
         y = torch.cat((convt5, conv5), 1)
 
         convt4 = self.convt4(y)
