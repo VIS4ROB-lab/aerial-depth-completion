@@ -7,7 +7,7 @@ iheight, iwidth = 480, 752 # raw image size
 class VISIMDataset(MyDataloaderExt):
     def __init__(self, root, type, sparsifier=None, modality='rgb',depth_divider=1.0):
         super(VISIMDataset, self).__init__(root, type, sparsifier, modality)
-        self.output_size = (228, 304)
+        self.output_size = (240, 320)
         self.depth_divider = depth_divider
 
     def train_transform(self, attrib_list):

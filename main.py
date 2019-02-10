@@ -6,9 +6,11 @@ import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
 import torch.optim
+from torchsummary import summary
 cudnn.benchmark = True
 
 from models import ResNet
+from model_ext import DepthCompletionNet
 from metrics import AverageMeter, Result
 from dataloaders.dense_to_sparse import UniformSampling, SimulatedStereo
 import criteria
@@ -135,12 +137,19 @@ def main():
         elif args.arch == 'resnet18':
             model = ResNet(layers=18, decoder=args.decoder, output_size=train_loader.dataset.output_size,
                 in_channels=in_channels, pretrained=args.pretrained)
+        elif args.arch == 'depthcompnet18':
+            model = DepthCompletionNet(layers=18,
+                                       #output_size=train_loader.dataset.output_size,
+                           #in_channels=in_channels,
+                                       pretrained=args.pretrained)
+
         print("=> model created.")
         optimizer = torch.optim.SGD(model.parameters(), args.lr, \
             momentum=args.momentum, weight_decay=args.weight_decay)
 
         # model = torch.nn.DataParallel(model).cuda() # for multi-gpu training
         model = model.cuda()
+        # summary(model,(4,240, 320))
 
     # define loss function (criterion) and optimizer
     if args.criterion == 'l2':
