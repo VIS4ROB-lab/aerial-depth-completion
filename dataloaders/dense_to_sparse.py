@@ -36,7 +36,7 @@ class UniformSampling(DenseToSparse):
         if self.max_depth is not np.inf:
             mask_keep = np.bitwise_and(mask_keep, depth <= self.max_depth)
         n_keep = np.count_nonzero(mask_keep)
-        if n_keep == 0:
+        if n_keep == 0 or self.num_samples == 0:
             return mask_keep
         else:
             prob = float(self.num_samples) / n_keep
