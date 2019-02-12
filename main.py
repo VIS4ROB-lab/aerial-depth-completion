@@ -281,12 +281,14 @@ def validate(val_loader, model, epoch, write_to_file=True):
         #         rgb = input
         #     else:
         rgb = input[:,:3,:,:]
-        depth = input[:,3:4,:,:]
+        depth = input[:,3:4,:,:]*args.depth_divider
+        target_img = target*args.depth_divider
+        pred_img = pred * args.depth_divider
 
         if i == 0:
-            img_merge = utils.merge_into_row_with_gt(rgb, depth, target, pred)
+            img_merge = utils.merge_into_row_with_gt(rgb, depth, target_img, pred_img)
         elif (i < 8*skip) and (i % skip == 0):
-            row = utils.merge_into_row_with_gt(rgb, depth, target, pred)
+            row = utils.merge_into_row_with_gt(rgb, depth, target_img, pred_img)
             img_merge = utils.add_row(img_merge, row)
         elif i == 8*skip:
             filename = output_directory + '/comparison_' + str(epoch) + '.png'

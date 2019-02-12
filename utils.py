@@ -3,7 +3,10 @@ import torch
 import shutil
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+from matplotlib.figure import Figure
 from PIL import Image
+import cv2
 
 cmap = plt.cm.viridis
 
@@ -132,10 +135,24 @@ def merge_into_row_with_gt(input, depth_input, depth_target, depth_pred):
     depth_input_col = colored_depthmap(depth_input_cpu, d_min, d_max)
     depth_target_col = colored_depthmap(depth_target_cpu, d_min, d_max)
     depth_pred_col = colored_depthmap(depth_pred_cpu, d_min, d_max)
-
-    img_merge = np.hstack([rgb, depth_input_col, depth_target_col, depth_pred_col])
+    hist = write_minmax(rgb.shape,d_min,d_max)
+    img_merge = np.hstack([rgb, depth_input_col, depth_target_col, depth_pred_col,hist])
 
     return img_merge
+
+def write_minmax(size_image,dmin,dmax):
+    fig = Figure()
+    canvas = FigureCanvas(fig)
+    ax = fig.gca()
+
+    ax.text(0.0, 0.0, "min:{0:.4f}\nmax:{1:.4f}".format(dmin,dmax), fontsize=45)
+    ax.axis('off')
+
+    canvas.draw()  # draw the canvas, cache the renderer
+    ncols, nrows = fig.canvas.get_width_height()
+    image = np.fromstring(canvas.tostring_rgb(), dtype='uint8').reshape( nrows, ncols, 3)
+    res = cv2.resize(image, dsize=(size_image[1],size_image[0]), interpolation=cv2.INTER_CUBIC)
+    return res
 
 
 def add_row(img_merge, row):
