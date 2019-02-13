@@ -224,21 +224,28 @@ def train(train_loader, model, criterion, optimizer, epoch):
     model.train() # switch to train mode
     end = time.time()
     for i, (input, target) in enumerate(train_loader):
-
+        print(1)
         input, target = input.cuda(), target.cuda()
+        print(2)
         #torch.cuda.synchronize()
         data_time = 0 #time.time() - end
 
         # compute pred
         end = time.time()
         pred = model(input)
+        print(3)
         loss = criterion(pred, target)
+        print(4)
         if loss is None:
             print('ignoring image, no valid pixel')
             continue
+        print(5)
         optimizer.zero_grad()
+        print(6)
         loss.backward() # compute gradient and do SGD step
+        print(7)
         optimizer.step()
+        print(8)
         #torch.cuda.synchronize()
         gpu_time = 0 #time.time() - end
 
