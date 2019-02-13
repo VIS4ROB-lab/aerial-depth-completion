@@ -226,6 +226,10 @@ def train(train_loader, model, criterion, optimizer, epoch):
     model.train() # switch to train mode
     end = time.time()
     print(0)
+    print(train_loader.dataset.__len__())
+    print(0.1)
+    print(train_loader.dataset.__getitem__(1))
+    print(0.5)
     for i, (input, target) in enumerate(train_loader):
         print(1)
         input, target = input.cuda(), target.cuda()
