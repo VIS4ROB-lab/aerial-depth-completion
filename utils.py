@@ -22,10 +22,10 @@ def parse_command():
 
 
     import argparse
-    parser = argparse.ArgumentParser(description='Sparse-to-Dense')
+    parser = argparse.ArgumentParser(description='Aerial Depth Completion')
     parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet18', choices=model_names,
                         help='model architecture: ' + ' | '.join(model_names) + ' (default: resnet18)')
-    parser.add_argument('--data', metavar='DATA', default='nyudepthv2',
+    parser.add_argument('--data', metavar='DATA', default='visim',
                         choices=data_names,
                         help='dataset: ' + ' | '.join(data_names) + ' (default: nyudepthv2)')
     parser.add_argument('--data-path', default='data', type=str, metavar='PATH',
@@ -40,7 +40,7 @@ def parse_command():
                         help='Normalization factor (default: 1.0 [m])')
     parser.add_argument('--sparsifier', metavar='SPARSIFIER', default=UniformSampling.name, choices=sparsifier_names,
                         help='sparsifier: ' + ' | '.join(sparsifier_names) + ' (default: ' + UniformSampling.name + ')')
-    parser.add_argument('--decoder', '-d', metavar='DECODER', default='deconv2', choices=decoder_names,
+    parser.add_argument('--decoder', '-d', metavar='DECODER', default='deconv3', choices=decoder_names,
                         help='decoder: ' + ' | '.join(decoder_names) + ' (default: deconv2)')
     parser.add_argument('-j', '--workers', default=10, type=int, metavar='N',
                         help='number of data loading workers (default: 10)')
@@ -49,8 +49,10 @@ def parse_command():
     parser.add_argument('-c', '--criterion', metavar='LOSS', default='l1', choices=loss_names,
                         help='loss function: ' + ' | '.join(loss_names) + ' (default: l1)')
     parser.add_argument('-b', '--batch-size', default=8, type=int, help='mini-batch size (default: 8)')
-    parser.add_argument('--lr', '--learning-rate', default=0.01, type=float,
+    parser.add_argument('-lr', '--learning-rate', default=0.01, type=float,dest='lr',
                         metavar='LR', help='initial learning rate (default 0.01)')
+    parser.add_argument('-lrs', '--learning-rate-step', default=5, type=int, metavar='LRS',dest='lrs',
+                        help='number of epochs between reduce the learning rate by 10 (default: 5)')
     parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
                         help='momentum')
     parser.add_argument('--weight-decay', '--wd', default=1e-4, type=float,
@@ -86,17 +88,21 @@ def save_checkpoint(state, is_best, epoch, output_directory):
         if os.path.exists(prev_checkpoint_filename):
             os.remove(prev_checkpoint_filename)
 
-def adjust_learning_rate(optimizer, epoch, lr_init):
-    """Sets the learning rate to the initial LR decayed by 10 every 5 epochs"""
-    lr = lr_init * (0.1 ** (epoch // 5))
+def adjust_learning_rate(optimizer, epoch, lr_init,lr_step):
+    """Sets the learning rate to the initial LR decayed by 10 every step epochs"""
+    if lr_step < 1:
+        lr = lr_init
+    else:
+        lr = lr_init * (0.1 ** (epoch // lr_step))
+
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
 
 def get_output_directory(args):
     output_directory = os.path.join('results',
-        '{}.sparsifier={}.samples={}.modality={}.arch={}.decoder={}.criterion={}.divider={}.lr={}.bs={}.pretrained={}'.
+        '{}.sparsifier={}.samples={}.modality={}.arch={}.criterion={}.divider={}.lr={}.lrs={}.bs={}.pretrained={}'.
         format(args.data, args.sparsifier, args.num_samples, args.modality, \
-            args.arch, args.decoder, args.criterion, args.depth_divider, args.lr, args.batch_size, \
+            args.arch,  args.criterion, args.depth_divider, args.lr,args.lrs, args.batch_size, \
             args.pretrained))
     return output_directory
 

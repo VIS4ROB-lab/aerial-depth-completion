@@ -195,7 +195,7 @@ class ResNet(nn.Module):
 
         # setting bias=true doesn't improve accuracy
         self.conv3 = nn.Conv2d(num_channels//32,1,kernel_size=3,stride=1,padding=1,bias=False)
-        self.bilinear = nn.Upsample(size=self.output_size, mode='bilinear', align_corners=True)
+        #self.bilinear = nn.functional.interpolate(size=self.output_size, mode='bilinear', align_corners=True)
 
         # weight init
         self.conv2.apply(weights_init)
@@ -220,6 +220,6 @@ class ResNet(nn.Module):
         # decoder
         x = self.decoder(x)
         x = self.conv3(x)
-        x = self.bilinear(x)
+        x = nn.functional.interpolate(x,size=self.output_size, mode='bilinear', align_corners=True)
 
         return x

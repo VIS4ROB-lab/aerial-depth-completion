@@ -5,10 +5,16 @@ from dataloaders.dataloader_ext import MyDataloaderExt
 iheight, iwidth = 480, 752 # raw image size
 
 class VISIMDataset(MyDataloaderExt):
-    def __init__(self, root, type, sparsifier=None, modality='rgb',depth_divider=1.0):
+    def __init__(self, root, type, sparsifier=None, modality='rgb', arch='resnet18',depth_divider=1.0):
         super(VISIMDataset, self).__init__(root, type, sparsifier, modality)
-        self.output_size = (228, 304) #(240, 320)#
         self.depth_divider = depth_divider
+        self.arch = arch
+        if 'depthcompnet' in self.arch:
+            self.output_size = (240, 320)
+        elif 'resnet' in self.arch:
+            self.output_size = (228, 304)
+        else:
+            raise (RuntimeError("unknown arch - visimdataset"))
 
     def train_transform(self, attrib_list):
 
@@ -30,7 +36,7 @@ class VISIMDataset(MyDataloaderExt):
 
         for key, value in attrib_list.items():
             attrib_np[key] = transform(value)
-            if key in ['gt_depth','fd','kor','kde','kgt','dor','dde']:
+            if key in ['gt_depth','fd','kor','kde','kgt','dor','dde', 'd3dwde','d3dwor']:
                 attrib_np[key] = attrib_np[key]  / self.depth_divider
 
         if 'rgb' in attrib_np:
@@ -50,7 +56,7 @@ class VISIMDataset(MyDataloaderExt):
 
         for key, value in attrib_list.items():
             attrib_np[key] = transform(value)
-            if key in ['gt_depth','fd','kor','kde','kgt','dor','dde']:
+            if key in ['gt_depth','fd','kor','kde','kgt','dor','dde', 'd3dwde','d3dwor']:
                 attrib_np[key] = attrib_np[key]  / self.depth_divider
 
         if 'rgb' in attrib_np:

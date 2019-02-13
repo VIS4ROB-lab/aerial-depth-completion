@@ -65,9 +65,9 @@ def create_data_loaders(args):
         from dataloaders.visim_dataloader import VISIMDataset
         if not args.evaluate:
             train_dataset = VISIMDataset(traindir, type='train',
-                modality=args.modality, sparsifier=sparsifier,depth_divider=args.depth_divider)
+                modality=args.modality, sparsifier=sparsifier,depth_divider=args.depth_divider, arch=args.arch)
         val_dataset = VISIMDataset(valdir, type='val',
-            modality=args.modality, sparsifier=sparsifier,depth_divider=args.depth_divider)
+            modality=args.modality, sparsifier=sparsifier,depth_divider=args.depth_divider, arch=args.arch)
 
     else:
         raise RuntimeError('Dataset not found.' +
@@ -142,6 +142,16 @@ def main():
                                        #output_size=train_loader.dataset.output_size,
                            #in_channels=in_channels,
                                        pretrained=args.pretrained)
+        elif args.arch == 'depthcompnet34':
+            model = DepthCompletionNet(layers=34,
+                                       #output_size=train_loader.dataset.output_size,
+                           #in_channels=in_channels,
+                                       pretrained=args.pretrained)
+        elif args.arch == 'depthcompnet50':
+            model = DepthCompletionNet(layers=50,
+                                       #output_size=train_loader.dataset.output_size,
+                           #in_channels=in_channels,
+                                       pretrained=args.pretrained)
 
         print("=> model created.")
         optimizer = torch.optim.SGD(model.parameters(), args.lr, \
@@ -164,9 +174,15 @@ def main():
     train_csv = os.path.join(output_directory, 'train.csv')
     test_csv = os.path.join(output_directory, 'test.csv')
     best_txt = os.path.join(output_directory, 'best.txt')
+    params_log = os.path.join(output_directory, 'params.txt')
 
     # create new csv files with only header
     if not args.resume:
+        with open(params_log, 'w') as paramsfile:
+            for arg, value in sorted(vars(args).items()):
+                paramsfile.write("{}: {}\n".format(arg, value))
+
+
         with open(train_csv, 'w') as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
@@ -175,9 +191,11 @@ def main():
             writer.writeheader()
 
     for epoch in range(start_epoch, args.epochs):
-        utils.adjust_learning_rate(optimizer, epoch, args.lr)
+        utils.adjust_learning_rate(optimizer, epoch, args.lr,args.lrs)
+        print('#### lr: {}'.format(optimizer.param_groups[0]['lr']))
         train(train_loader, model, criterion, optimizer, epoch) # train for one epoch
         result, img_merge = validate(val_loader, model, epoch) # evaluate on validation set
+
 
         # remember best rmse and save checkpoint
         is_best = result.rmse < best_result.rmse
