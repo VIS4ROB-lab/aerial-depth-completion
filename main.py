@@ -194,6 +194,7 @@ def main():
     for epoch in range(start_epoch, args.epochs):
         utils.adjust_learning_rate(optimizer, epoch, args.lr,args.lrs)
         print('#### lr: {}'.format(optimizer.param_groups[0]['lr']))
+        print(-1)
         train(train_loader, model, criterion, optimizer, epoch) # train for one epoch
         result, img_merge = validate(val_loader, model, epoch) # evaluate on validation set
 
@@ -221,8 +222,10 @@ def main():
 
 def train(train_loader, model, criterion, optimizer, epoch):
     average_meter = AverageMeter()
+    print(-0.5)
     model.train() # switch to train mode
     end = time.time()
+    print(0)
     for i, (input, target) in enumerate(train_loader):
         print(1)
         input, target = input.cuda(), target.cuda()
