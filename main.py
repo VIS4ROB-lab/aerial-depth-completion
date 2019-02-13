@@ -226,8 +226,8 @@ def train(train_loader, model, criterion, optimizer, epoch):
     for i, (input, target) in enumerate(train_loader):
 
         input, target = input.cuda(), target.cuda()
-        torch.cuda.synchronize()
-        data_time = time.time() - end
+        #torch.cuda.synchronize()
+        data_time = 0 #time.time() - end
 
         # compute pred
         end = time.time()
@@ -239,8 +239,8 @@ def train(train_loader, model, criterion, optimizer, epoch):
         optimizer.zero_grad()
         loss.backward() # compute gradient and do SGD step
         optimizer.step()
-        torch.cuda.synchronize()
-        gpu_time = time.time() - end
+        #torch.cuda.synchronize()
+        gpu_time = 0 #time.time() - end
 
         # measure accuracy and record loss
         result = Result()
@@ -275,15 +275,15 @@ def validate(val_loader, model, epoch, write_to_file=True):
     end = time.time()
     for i, (input, target) in enumerate(val_loader):
         input, target = input.cuda(), target.cuda()
-        torch.cuda.synchronize()
-        data_time = time.time() - end
+        #torch.cuda.synchronize()
+        data_time = 0 #time.time() - end
 
         # compute output
         end = time.time()
         with torch.no_grad():
             pred = model(input)
-        torch.cuda.synchronize()
-        gpu_time = time.time() - end
+        #torch.cuda.synchronize()
+        gpu_time = 0 #time.time() - end
 
         # measure accuracy and record loss
         result = Result()
