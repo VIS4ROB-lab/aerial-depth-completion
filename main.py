@@ -10,7 +10,7 @@ from torchsummary import summary
 cudnn.benchmark = True
 
 from models import ResNet
-from model_ext import DepthCompletionNet
+from model_ext import DepthCompletionNet,DepthWeightCompletionNet
 from metrics import AverageMeter, Result
 from dataloaders.dense_to_sparse import UniformSampling, SimulatedStereo
 import criteria
@@ -152,6 +152,13 @@ def main():
                                        #output_size=train_loader.dataset.output_size,
                            #in_channels=in_channels,
                                        pretrained=args.pretrained)
+        elif args.arch == 'weightcompnet18':
+            model = DepthWeightCompletionNet(layers=18,
+                                       # output_size=train_loader.dataset.output_size,
+                                       # in_channels=in_channels,
+                                       pretrained=args.pretrained)
+
+
 
         print("=> model created. GPUS:{}".format(torch.cuda.device_count()))
         optimizer = torch.optim.SGD(model.parameters(), args.lr, \

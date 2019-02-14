@@ -53,6 +53,29 @@ class Modality():
                 return False
         return True
 
+    def format(self):
+        format_out =''
+        if 'rgb' in self.modalities:
+            format_out = format_out + 'rgb'
+
+        if 'grey' in self.modalities:
+            format_out = format_out + 'g'
+
+        for token in self.modalities:
+            if  token in ['fd', 'kor', 'kgt', 'dor', 'dde', 'kvor']:
+                format_out = format_out + 'd'
+                break
+        for token in self.modalities:
+            if  token in ['d2dwor', 'd3dwde','d3dwor', 'kw']:
+                format_out = format_out + 'w'
+                break
+
+
+            if not token in self.modality_names:
+                print('token: "{}" is invalid'.format())
+                return False
+        return True
+
     @staticmethod
     def validate_static(value):
         modals = value.split('-')
