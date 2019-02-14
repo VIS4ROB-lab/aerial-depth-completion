@@ -30,6 +30,9 @@ def rgb2grayscale(rgb):
 
 class Modality():
     modality_names = ['rgb', 'grey', 'fd', 'kor', 'kgt', 'kw', 'kde', 'dor', 'dde', 'kvor', 'd2dwor', 'd3dwde','d3dwor']
+    depth_channels_names = ['fd', 'kor', 'kgt', 'dor', 'dde', 'kvor']
+    weight_names = ['d2dwor', 'd3dwde','d3dwor', 'kw']
+    color_names = ['rgb', 'grey']
 
     def __init__(self, value):
         self.modalities = value.split('-')
@@ -53,6 +56,10 @@ class Modality():
                 return False
         return True
 
+    def get_image_channel(self):
+    ...
+
+
     def format(self):
         format_out =''
         if 'rgb' in self.modalities:
@@ -62,19 +69,15 @@ class Modality():
             format_out = format_out + 'g'
 
         for token in self.modalities:
-            if  token in ['fd', 'kor', 'kgt', 'dor', 'dde', 'kvor']:
+            if  token in self.depth_channels_names:
                 format_out = format_out + 'd'
                 break
         for token in self.modalities:
-            if  token in ['d2dwor', 'd3dwde','d3dwor', 'kw']:
+            if  token in self.weight_names:
                 format_out = format_out + 'w'
                 break
 
-
-            if not token in self.modality_names:
-                print('token: "{}" is invalid'.format())
-                return False
-        return True
+        return format_out
 
     @staticmethod
     def validate_static(value):
