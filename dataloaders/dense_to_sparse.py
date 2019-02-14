@@ -39,7 +39,10 @@ class UniformSampling(DenseToSparse):
         if n_keep == 0 or self.num_samples == 0:
             return mask_keep
         else:
-            prob = float(self.num_samples) / n_keep
+            if self.num_samples == -1 :
+                prob = np.random.randint(5, 100,1)/100.0
+            else:
+                prob = float(self.num_samples) / n_keep
             return np.bitwise_and(mask_keep, np.random.uniform(0, 1, depth.shape) < prob)
 
 
