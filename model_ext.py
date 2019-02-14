@@ -151,6 +151,5 @@ class DepthCompletionNet(nn.Module):
         if self.training:
             return y
         else:
-            min_distance = 0.9
-            return F.relu(y - min_distance) + min_distance # the minimum range of Velodyne is around 3 feet ~= 0.9m
+            return F.relu(y)
         return y

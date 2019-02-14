@@ -53,6 +53,8 @@ def parse_command():
                         metavar='LR', help='initial learning rate (default 0.01)')
     parser.add_argument('-lrs', '--learning-rate-step', default=5, type=int, metavar='LRS',dest='lrs',
                         help='number of epochs between reduce the learning rate by 10 (default: 5)')
+    parser.add_argument('-lrm', '--learning-rate-min', default=0.00001, type=float, dest='lrm',
+                        metavar='LRM', help='minimum learning rate (default 0.00001)')
     parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
                         help='momentum')
     parser.add_argument('--weight-decay', '--wd', default=1e-4, type=float,
@@ -88,12 +90,15 @@ def save_checkpoint(state, is_best, epoch, output_directory):
         if os.path.exists(prev_checkpoint_filename):
             os.remove(prev_checkpoint_filename)
 
-def adjust_learning_rate(optimizer, epoch, lr_init,lr_step):
+def adjust_learning_rate(optimizer, epoch, lr_init,lr_step,lr_min):
     """Sets the learning rate to the initial LR decayed by 10 every step epochs"""
     if lr_step < 1:
         lr = lr_init
     else:
         lr = lr_init * (0.1 ** (epoch // lr_step))
+
+    if lr < lr_min:
+        lr = lr_min
 
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr

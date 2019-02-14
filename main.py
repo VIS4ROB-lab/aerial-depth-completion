@@ -192,7 +192,7 @@ def main():
             writer.writeheader()
 
     for epoch in range(start_epoch, args.epochs):
-        utils.adjust_learning_rate(optimizer, epoch, args.lr,args.lrs)
+        utils.adjust_learning_rate(optimizer, epoch, args.lr,args.lrs,args.lrm)
         print('#### lr: {}'.format(optimizer.param_groups[0]['lr']))
 
         train(train_loader, model, criterion, optimizer, epoch) # train for one epoch
