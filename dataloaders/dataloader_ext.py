@@ -30,9 +30,9 @@ def rgb2grayscale(rgb):
 
 class Modality():
     modality_names = ['rgb', 'grey', 'fd', 'kor', 'kgt', 'kw', 'kde', 'dor', 'dde', 'kvor', 'd2dwor', 'd3dwde','d3dwor']
-    depth_channels_names = ['fd', 'kor', 'kgt', 'dor', 'dde', 'kvor']
+    depth_channels_names = ['fd', 'kor', 'kde', 'kgt', 'dor', 'dde', 'kvor']
     weight_names = ['d2dwor', 'd3dwde','d3dwor', 'kw']
-    color_names = ['rgb', 'grey']
+    #color_names = ['rgb', 'grey']
 
     def __init__(self, value):
         self.modalities = value.split('-')
@@ -40,14 +40,21 @@ class Modality():
         if not self.is_valid:
             self.modalities = []
 
+        self.format = self.calc_format()
+
+
     def __contains__(self, key):
         return key in self.modalities
 
+    # def num_channels(self):
+    #     num = len(self.modalities) # remove groundtruth channel
+    #     if 'rgb' in self.modalities:
+    #         num = num+2
+    #     return num
+
     def num_channels(self):
-        num = len(self.modalities) # remove groundtruth channel
-        if 'rgb' in self.modalities:
-            num = num+2
-        return num
+        num_channel = len(self.format)
+        return num_channel
 
     def validate(self):
         for token in self.modalities:
@@ -56,11 +63,31 @@ class Modality():
                 return False
         return True
 
-    def get_image_channel(self):
-    ...
+    def get_input_image_channel(self):
+        if 'rgb' in self.modalities:
+            return 3,'rgb'
+
+        if 'grey' in self.modalities:
+            return 1,'grey'
+
+        return 0, ''
+
+    def get_input_depth_channel(self):
+        for token in self.modalities:
+            if token in self.depth_channels_names:
+                return 1,token
+                break
+        return 0, ''
+
+    def get_input_weight_channel(self):
+        for token in self.modalities:
+            if token in self.weight_names:
+                return 1,token
+                break
+        return 0,''
 
 
-    def format(self):
+    def calc_format(self):
         format_out =''
         if 'rgb' in self.modalities:
             format_out = format_out + 'rgb'
@@ -72,6 +99,7 @@ class Modality():
             if  token in self.depth_channels_names:
                 format_out = format_out + 'd'
                 break
+
         for token in self.modalities:
             if  token in self.weight_names:
                 format_out = format_out + 'w'
@@ -169,6 +197,9 @@ class MyDataloaderExt(data.Dataset):
         if 'rgb' in type:
             result['rgb'] = rgb
 
+        if 'grey' in type:
+            result['grey'] = rgb2grayscale(rgb)
+
         #fake sparse data using the spasificator and ground-truth depth
         if 'fd' in type:
             result['fd'] = self.create_sparse_depth(rgb, depth)
@@ -248,6 +279,21 @@ class MyDataloaderExt(data.Dataset):
 
         return img.float()
 
+    def append_tensor3d(self,input_np,value):
+        if not isinstance(input_np, np.ndarray):  # first element
+            if value.ndim == 2:
+                input_np = np.expand_dims(value, axis=0)
+            elif value.ndim == 3:
+                input_np = value
+        else:  # 2nd ,3rd ...
+            if value.ndim == 2:
+                input_np = np.append(input_np, np.expand_dims(value, axis=0), axis=0)
+            elif value.ndim == 3:
+                input_np = np.append(input_np, value, axis=0)
+            else:
+                raise RuntimeError('value should be ndarray with 2 or 3 dimensions. Got {}'.format(value.ndim))
+        return input_np
+
     def __getitem__(self, index):
 
         input_np = None
@@ -259,22 +305,21 @@ class MyDataloaderExt(data.Dataset):
         else:
             raise (RuntimeError("transform not defined"))
 
-
         for key, value in channels_transformed_np.items():
             if key == 'gt_depth':
                 continue
-            if not isinstance(input_np, np.ndarray):
-                if value.ndim == 2:
-                    input_np = np.expand_dims(value, axis=0)
-                elif value.ndim == 3:
-                    input_np = value
-            else:
-                if value.ndim == 2:
-                    input_np = np.append(input_np, np.expand_dims(value, axis=0), axis=0)
-                elif value.ndim == 3:
-                    input_np = np.append(input_np, value, axis=0)
-                else:
-                    raise RuntimeError('value should be ndarray with 2 or 3 dimensions. Got {}'.format(value.ndim))
+
+        num_image_channel,image_channel = self.modality.get_input_image_channel()
+        if num_image_channel > 0:
+            input_np = self.append_tensor3d(input_np,channels_transformed_np[image_channel])
+
+        num_depth_channel, depth_channel = self.modality.get_input_depth_channel()
+        if num_depth_channel > 0:
+            input_np = self.append_tensor3d(input_np, channels_transformed_np[depth_channel])
+
+        num_weight_channel, weight_channel = self.modality.get_input_weight_channel()
+        if num_weight_channel > 0:
+            input_np = self.append_tensor3d(input_np, channels_transformed_np[weight_channel])
 
         input_tensor = self.to_tensor(input_np)
         target_depth_tensor = self.to_tensor(channels_transformed_np['gt_depth']).unsqueeze(0)

@@ -9,12 +9,15 @@ class VISIMDataset(MyDataloaderExt):
         super(VISIMDataset, self).__init__(root, type, sparsifier, modality)
         self.depth_divider = depth_divider
         self.arch = arch
-        if 'depthcompnet' in self.arch:
+
+        if 'weightcompnet' in self.arch:
+            self.output_size = (240, 320)
+        elif 'depthcompnet' in self.arch:
             self.output_size = (240, 320)
         elif 'resnet' in self.arch:
             self.output_size = (228, 304)
         else:
-            raise (RuntimeError("unknown arch - visimdataset"))
+            raise (RuntimeError("{} is an unknown arch - visim-dataloader".format(self.arch)))
 
     def train_transform(self, attrib_list):
 

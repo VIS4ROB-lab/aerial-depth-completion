@@ -54,10 +54,12 @@ def convt_bn_relu(in_channels, out_channels, kernel_size, \
     return layers
 
 class DepthCompletionNet(nn.Module):
-    def __init__(self, layers=18,input='rgbd',pretrained=True):
-        #layers = args.layers
-        self.modality = input
-        #pretrained = args.pretrained
+    def __init__(self, layers=18,modality_format='rgbd',pretrained=True):
+
+        self.modality = modality_format
+
+        assert(not 'w' in self.modality)
+
         assert ( layers in [18, 34, 50, 101, 152]), 'Only layers 18, 34, 50, 101, and 152 are defined, but got {}'.format(layers)
         super(DepthCompletionNet, self).__init__()
 
@@ -156,12 +158,14 @@ class DepthCompletionNet(nn.Module):
 
 
 class DepthWeightCompletionNet(nn.Module):
-    def __init__(self, layers=18,input='rgbd',pretrained=True):
-        #layers = args.layers
-        self.modality = input
-        #pretrained = args.pretrained
+    def __init__(self, layers=18,modality_format='rgbd',pretrained=True):
+
+        self.modality = modality_format
+        if 'w' in self.modality:
+            assert ( 'd' in self.modality )
         assert ( layers in [18, 34, 50, 101, 152]), 'Only layers 18, 34, 50, 101, and 152 are defined, but got {}'.format(layers)
-        super(DepthCompletionNet, self).__init__()
+        super(DepthWeightCompletionNet, self).__init__()
+        used_channels = 0
 
         if 'dw' in self.modality:
             channels = 64 // (len(self.modality) - 1)
@@ -171,10 +175,10 @@ class DepthWeightCompletionNet(nn.Module):
             self.conv1_d = conv_bn_relu(1, channels, kernel_size=3, stride=1, padding=1)
 
         if 'rgb' in self.modality:
-            channels = 64 * 3 // len(self.modality)
+            channels = 64 * 3 // (len(self.modality)-1 if 'w' in self.modality else len(self.modality))
             self.conv1_img = conv_bn_relu(3, channels, kernel_size=3, stride=1, padding=1)
         elif 'g' in self.modality:
-            channels = 64 // len(self.modality)
+            channels = 64 // (len(self.modality)-1 if 'w' in self.modality else len(self.modality))
             self.conv1_img = conv_bn_relu(1, channels, kernel_size=3, stride=1, padding=1)
 
         pretrained_model = resnet.__dict__['resnet{}'.format(layers)](pretrained=pretrained)
@@ -210,19 +214,25 @@ class DepthWeightCompletionNet(nn.Module):
         self.convtf = conv_bn_relu(in_channels=128, out_channels=1, kernel_size=1, stride=1, bn=False, relu=False)
 
     def forward(self, x):
-        # print(x.shape)
-        d = x[:,3, :, :].unsqueeze(1)
-        rgb = x[:,:3, :, :]
-
+        channel_offset = 0;
         # first layer
-        if 'd' in self.modality:
-            conv1_d = self.conv1_d(d)
         if 'rgb' in self.modality:
+            rgb = x[:, channel_offset:3, :, :]
             conv1_img = self.conv1_img(rgb)
+            channel_offset = channel_offset +3
         elif 'g' in self.modality:
-            conv1_img = self.conv1_img(x['g'])
+            g = x[:, channel_offset:1, :, :]
+            conv1_img = self.conv1_img(g)
+            channel_offset = channel_offset + 1
 
-        if self.modality=='rgbd' or self.modality=='gd':
+        if 'dw' in self.modality:
+            d = x[:, channel_offset:(channel_offset+2), :, :]
+            conv1_d = self.conv1_d(d)
+        elif 'd' in self.modality:
+            d = x[:, channel_offset:(channel_offset + 1), :, :]
+            conv1_d = self.conv1_d(d)
+
+        if 'rgbd' in self.modality or 'gd' in self.modality:
             conv1 = torch.cat((conv1_d, conv1_img),1)
         else:
             conv1 = conv1_d if (self.modality=='d') else conv1_img

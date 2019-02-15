@@ -138,24 +138,27 @@ def main():
             model = ResNet(layers=18, decoder=args.decoder, output_size=train_loader.dataset.output_size,
                 in_channels=in_channels, pretrained=args.pretrained)
         elif args.arch == 'depthcompnet18':
-            model = DepthCompletionNet(layers=18,
-                                       #output_size=train_loader.dataset.output_size,
-                           #in_channels=in_channels,
+            model = DepthCompletionNet(layers=18,modality_format=g_modality.format,
                                        pretrained=args.pretrained)
         elif args.arch == 'depthcompnet34':
             model = DepthCompletionNet(layers=34,
-                                       #output_size=train_loader.dataset.output_size,
-                           #in_channels=in_channels,
+                                       modality_format=g_modality.format,
                                        pretrained=args.pretrained)
         elif args.arch == 'depthcompnet50':
             model = DepthCompletionNet(layers=50,
-                                       #output_size=train_loader.dataset.output_size,
-                           #in_channels=in_channels,
+                                       modality_format=g_modality.format,
                                        pretrained=args.pretrained)
         elif args.arch == 'weightcompnet18':
             model = DepthWeightCompletionNet(layers=18,
-                                       # output_size=train_loader.dataset.output_size,
-                                       # in_channels=in_channels,
+                                       modality_format=g_modality.format,
+                                       pretrained=args.pretrained)
+        elif args.arch == 'weightcompnet34':
+            model = DepthWeightCompletionNet(layers=34,
+                                       modality_format=g_modality.format,
+                                       pretrained=args.pretrained)
+        elif args.arch == 'weightcompnet50':
+            model = DepthWeightCompletionNet(layers=50,
+                                       modality_format=g_modality.format,
                                        pretrained=args.pretrained)
 
 
@@ -313,8 +316,22 @@ def validate(val_loader, model, epoch, write_to_file=True):
         #     if args.modality == 'rgb':
         #         rgb = input
         #     else:
-        rgb = input[:,:3,:,:]
-        depth = input[:,3:4,:,:]*args.depth_divider
+        image_nchannels,_ = g_modality.get_input_image_channel()
+
+        if image_nchannels == 3:
+            rgb = input[:, 0:3, :, :]
+        elif image_nchannels == 1:
+            rgb = input[:, 0:1, :, :].cpu()
+            rgb = rgb.expand(-1, 3, -1, -1)
+        else:
+            rgb = torch.zeros(input[:, 0:1, :, :].size()).expand(-1,3,-1,-1)
+
+        depth_nchannels,_ = g_modality.get_input_depth_channel()
+        if(depth_nchannels == 1):
+            depth = input[:,image_nchannels:(image_nchannels+1),:,:]*args.depth_divider
+        else:
+            depth = torch.zeros(input[:, 0:1, :, :].size())
+
         target_img = target*args.depth_divider
         pred_img = pred * args.depth_divider
 

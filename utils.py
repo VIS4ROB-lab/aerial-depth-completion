@@ -11,7 +11,7 @@ import cv2
 cmap = plt.cm.viridis
 
 def parse_command():
-    model_names = ['resnet18', 'resnet50','depthcompnet18']
+    model_names = ['resnet18', 'resnet50','depthcompnet18','depthcompnet34','depthcompnet50','weightcompnet18','weightcompnet34','weightcompnet50']
     loss_names = ['l1', 'l2']
     data_names = ['nyudepthv2', 'kitti', 'visim']
     from dataloaders.dense_to_sparse import UniformSampling, SimulatedStereo
