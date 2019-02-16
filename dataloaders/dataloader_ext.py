@@ -29,9 +29,9 @@ def rgb2grayscale(rgb):
     return rgb[:,:,0] * 0.2989 + rgb[:,:,1] * 0.587 + rgb[:,:,2] * 0.114
 
 class Modality():
-    modality_names = ['rgb', 'grey', 'fd', 'kor', 'kgt', 'kw', 'kde', 'dor', 'dde', 'kvor', 'd2dwor', 'd3dwde','d3dwor']
+    modality_names = ['rgb', 'grey', 'fd', 'kor', 'kgt', 'kw', 'kde', 'dor', 'dde', 'kvor', 'd2dwor', 'd3dwde','d3dwor','wkde','wdde']
     depth_channels_names = ['fd', 'kor', 'kde', 'kgt', 'dor', 'dde', 'kvor']
-    weight_names = ['d2dwor', 'd3dwde','d3dwor', 'kw']
+    weight_names = ['d2dwor', 'd3dwde','d3dwor', 'kw','wkde','wdde']
     #color_names = ['rgb', 'grey']
 
     def __init__(self, value):
@@ -234,6 +234,16 @@ class MyDataloaderExt(data.Dataset):
                     kde_input[xp, yp] = row[3]
             result['kde'] = kde_input
 
+        if 'wkde' in type:
+            kde_input = np.zeros_like(depth)
+            for row in data_2d:
+                xp = int(math.floor(row[1]))
+                yp = int(math.floor(row[0]))
+                if (row[3] > 0):
+                    kde_input[xp, yp] = row[3]
+            result['wkde'] = kde_input
+
+
         if 'kw' in type:
             kw_input = np.zeros_like(depth)
             for row in data_2d:
@@ -248,7 +258,7 @@ class MyDataloaderExt(data.Dataset):
         if 'd2dwor' in type:
             raise (RuntimeError("transform not defined"))
 
-        if 'dor' in type or 'dde' in type or 'd3dwor' in type or 'd3dwde' in type:
+        if 'dor' in type or 'dde' in type or 'd3dwor' in type or 'd3dwde' in type or 'wdde' in type:
             dense_data = h5f['dense_image_data']
 
             if 'dor' in type:
@@ -262,6 +272,9 @@ class MyDataloaderExt(data.Dataset):
 
             if 'd3dwde' in type:
                 result['d3dwde'] = np.array(dense_data[6, :, :])
+
+            if 'wdde' in type:
+                result['wdde'] = np.array(dense_data[4, :, :])
 
 
         return result
