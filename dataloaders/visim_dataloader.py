@@ -59,8 +59,10 @@ class VISIMDataset(MyDataloaderExt):
 
         for key, value in attrib_list.items():
             attrib_np[key] = transform(value)
-            if key in ['gt_depth','fd','kor','kde','kgt','dor','dde', 'd3dwde','d3dwor']:
+            if key in ['gt_depth','fd','kor','kde','kgt','dor','dde', 'd3dwde','d3dwor','dvor']:
                 attrib_np[key] = attrib_np[key]  / self.depth_divider
+            if key == 'd2dwor':
+                attrib_np[key] = attrib_np[key] / (self.output_size[1]*1.5)#1.5 about sqrt(2)- square's diagonal
 
         if 'rgb' in attrib_np:
             attrib_np['rgb'] = (np.asfarray(attrib_np['rgb'], dtype='float') / 255).transpose((2, 0, 1))

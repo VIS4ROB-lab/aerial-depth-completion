@@ -8,6 +8,10 @@ import csv
 import dataloaders.transforms as transforms
 import math
 import argparse
+from scipy import ndimage
+import numpy as np
+epsilon= np.finfo(float).eps
+import matplotlib.pyplot as plt
 
 IMG_EXTENSIONS = ['.h5',]
 
@@ -29,8 +33,8 @@ def rgb2grayscale(rgb):
     return rgb[:,:,0] * 0.2989 + rgb[:,:,1] * 0.587 + rgb[:,:,2] * 0.114
 
 class Modality():
-    modality_names = ['rgb', 'grey', 'fd', 'kor', 'kgt', 'kw', 'kde', 'dor', 'dde', 'kvor', 'd2dwor', 'd3dwde','d3dwor','wkde','wdde']
-    depth_channels_names = ['fd', 'kor', 'kde', 'kgt', 'dor', 'dde', 'kvor']
+    modality_names = ['rgb', 'grey', 'fd', 'kor', 'kgt', 'kw', 'kde', 'dor', 'dde', 'dvor', 'd2dwor', 'd3dwde','d3dwor','wkde','wdde']
+    depth_channels_names = ['fd', 'kor', 'kde', 'kgt', 'dor', 'dde', 'dvor']
     weight_names = ['d2dwor', 'd3dwde','d3dwor', 'kw','wkde','wdde']
     #color_names = ['rgb', 'grey']
 
@@ -207,14 +211,58 @@ class MyDataloaderExt(data.Dataset):
         #using real keypoints from slam
         data_2d = np.array(h5f['landmark_2d_data'])
 
-        if 'kor' in type:
+        if 'kor' in type or 'dvor' in type or 'd2dwor' in type:
             kor_input = np.zeros_like(depth)
             for row in data_2d:
                 xp = int(math.floor(row[1]))
                 yp = int(math.floor(row[0]))
                 if (row[2] > 0):
                     kor_input[xp, yp] = row[2]
-            result['kor'] = kor_input
+            if 'kor' in type:
+                result['kor'] = kor_input
+            if 'dvor' in type or 'd2dwor' in type:
+                mask = (kor_input<epsilon)
+                edt, inds = ndimage.distance_transform_edt(mask,return_indices=True)
+                edt_sq = np.sqrt(edt)
+                # plt.imshow(mask.astype(dtype=float));
+                # plt.colorbar()
+                # plt.show()
+                #
+                # plt.imshow(edt_sq);
+                # plt.colorbar()
+                # plt.show()
+                #
+                # plt.imshow(inds[0,:,:]);
+                # plt.colorbar()
+                # plt.show()
+
+                if 'd2dwor' in type:
+                    result['d2dwor'] = edt_sq
+
+                if 'dvor' in type:
+                    dvor_input = np.zeros_like(kor_input)
+                    it = np.nditer(dvor_input, flags=['multi_index'], op_flags=['writeonly'])
+
+                    with it:
+                        while not it.finished:
+                            xp = inds[0, it.multi_index[0],  it.multi_index[1]]
+                            yp = inds[1, it.multi_index[0], it.multi_index[1]]
+
+                            it[0] = kor_input[ xp, yp]
+                            it.iternext()
+                    result['dvor'] = dvor_input
+
+                    # plt.imshow(edt_sq)
+                    # plt.colorbar()
+                    # plt.show()
+                    #
+                    # plt.imshow(dvor_input)
+                    # plt.colorbar()
+                    # plt.show()
+
+
+
+
 
         if 'kgt' in type:
             kgt_input = np.zeros_like(depth)
@@ -253,10 +301,6 @@ class MyDataloaderExt(data.Dataset):
                     kw_input[xp, yp] = row[4]
             result['kw'] = kw_input
 
-        if 'kvor' in type:
-            raise (RuntimeError("transform not defined"))
-        if 'd2dwor' in type:
-            raise (RuntimeError("transform not defined"))
 
         if 'dor' in type or 'dde' in type or 'd3dwor' in type or 'd3dwde' in type or 'wdde' in type:
             dense_data = h5f['dense_image_data']
@@ -275,6 +319,9 @@ class MyDataloaderExt(data.Dataset):
 
             if 'wdde' in type:
                 result['wdde'] = np.array(dense_data[4, :, :])
+
+
+
 
 
         return result
