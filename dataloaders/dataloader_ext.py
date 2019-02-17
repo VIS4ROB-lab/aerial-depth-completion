@@ -1,6 +1,5 @@
 import os
 import os.path
-import numpy as np
 import torch.utils.data as data
 import torch
 import h5py
@@ -10,8 +9,10 @@ import math
 import argparse
 from scipy import ndimage
 import numpy as np
+#import cv2 leak memory. try to avoid
+
+
 epsilon= np.finfo(float).eps
-import matplotlib.pyplot as plt
 
 IMG_EXTENSIONS = ['.h5',]
 
@@ -30,7 +31,7 @@ def load_files_list(path):
     return images
 
 def rgb2grayscale(rgb):
-    return rgb[:,:,0] * 0.2989 + rgb[:,:,1] * 0.587 + rgb[:,:,2] * 0.114
+    return rgb[0,:,:] * 0.2989 + rgb[1,:,:] * 0.587 + rgb[2,:,:] * 0.114
 
 class Modality():
     modality_names = ['rgb', 'grey', 'fd', 'kor', 'kgt', 'kw', 'kde', 'dor', 'dde', 'dvor', 'd2dwor', 'd3dwde','d3dwor','wkde','wdde']
@@ -196,13 +197,15 @@ class MyDataloaderExt(data.Dataset):
         # color data
 
         rgb = np.array(h5f['rgb_image_data'])
+
+        if 'grey' in type:
+            grey_img = rgb2grayscale(rgb)
+            result['grey'] = grey_img
+
         rgb = np.transpose(rgb, (1, 2, 0))
 
         if 'rgb' in type:
             result['rgb'] = rgb
-
-        if 'grey' in type:
-            result['grey'] = rgb2grayscale(rgb)
 
         #fake sparse data using the spasificator and ground-truth depth
         if 'fd' in type:

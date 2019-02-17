@@ -321,7 +321,7 @@ def validate(val_loader, model, epoch, write_to_file=True):
         if image_nchannels == 3:
             rgb = input[:, 0:3, :, :]
         elif image_nchannels == 1:
-            rgb = input[:, 0:1, :, :].cpu()
+            rgb = input[:, 0:1, :, :].data
             rgb = rgb.expand(-1, 3, -1, -1)
         else:
             rgb = torch.zeros(input[:, 0:1, :, :].size()).expand(-1,3,-1,-1)
