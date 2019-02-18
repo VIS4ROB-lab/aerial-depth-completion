@@ -34,10 +34,11 @@ def rgb2grayscale(rgb):
     return rgb[0,:,:] * 0.2989 + rgb[1,:,:] * 0.587 + rgb[2,:,:] * 0.114
 
 class Modality():
-    modality_names = ['rgb', 'grey', 'fd', 'kor', 'kgt', 'kw', 'kde', 'dor', 'dde', 'dvor', 'd2dwor', 'd3dwde','d3dwor','wkde','wdde']
-    depth_channels_names = ['fd', 'kor', 'kde', 'kgt', 'dor', 'dde', 'dvor']
-    weight_names = ['d2dwor', 'd3dwde','d3dwor', 'kw','wkde','wdde']
-    #color_names = ['rgb', 'grey']
+    #modality_names = ['rgb', 'grey', 'fd', 'kor', 'kgt', 'kw', 'kde', 'dor', 'dde', 'dvor', 'd2dwor', 'd3dwde','d3dwor','wkde','wdde']
+    depth_channels_names = ['fd', 'kor', 'kde', 'kgt', 'dor', 'dde', 'dvor', 'dvgt', 'dvde']
+    weight_names = ['d2dwde','d2dwgt','d2dwor', 'd3dwde','d3dwor', 'kw','wkde','wdde']
+    color_names = ['rgb', 'grey']
+    modality_names = color_names+depth_channels_names+weight_names
 
     def __init__(self, value):
         self.modalities = value.split('-')
@@ -182,6 +183,30 @@ class MyDataloaderExt(data.Dataset):
     # d3dwde - 3d euclidian distance to closest the denoised slam keypoint
     # d3dwor - 3d euclidian distance to closest the slam keypoint
 
+    def calc_from_sparse_input(self,in_sparse_map,voronoi=True):
+
+        res_voronoi = None
+        res_edt = None
+
+        if voronoi or edt:
+            mask = (in_sparse_map < epsilon)
+            edt_result = ndimage.distance_transform_edt(mask, return_indices=voronoi)
+            res_edt = np.sqrt(edt_result[0])
+
+            if voronoi:
+                res_voronoi = np.zeros_like(in_sparse_map)
+                it = np.nditer(res_voronoi, flags=['multi_index'], op_flags=['writeonly'])
+
+                with it:
+                    while not it.finished:
+                        xp = edt_result[1][0, it.multi_index[0], it.multi_index[1]]
+                        yp = edt_result[1][1, it.multi_index[0], it.multi_index[1]]
+
+                        it[0] = in_sparse_map[xp, yp]
+                        it.iternext()
+
+        return res_voronoi,res_edt
+
     def h5_loader_general(self,index,type):
         result = dict()
         path, target = self.imgs[index]
@@ -214,6 +239,8 @@ class MyDataloaderExt(data.Dataset):
         #using real keypoints from slam
         data_2d = np.array(h5f['landmark_2d_data'])
 
+
+
         if 'kor' in type or 'dvor' in type or 'd2dwor' in type:
             kor_input = np.zeros_like(depth)
             for row in data_2d:
@@ -221,69 +248,49 @@ class MyDataloaderExt(data.Dataset):
                 yp = int(math.floor(row[0]))
                 if (row[2] > 0):
                     kor_input[xp, yp] = row[2]
+
+            res_voronoi,res_edt = self.calc_from_sparse_input(kor_input,'dvor' in type)
+
             if 'kor' in type:
                 result['kor'] = kor_input
-            if 'dvor' in type or 'd2dwor' in type:
-                mask = (kor_input<epsilon)
-                edt, inds = ndimage.distance_transform_edt(mask,return_indices=True)
-                edt_sq = np.sqrt(edt)
-                # plt.imshow(mask.astype(dtype=float));
-                # plt.colorbar()
-                # plt.show()
-                #
-                # plt.imshow(edt_sq);
-                # plt.colorbar()
-                # plt.show()
-                #
-                # plt.imshow(inds[0,:,:]);
-                # plt.colorbar()
-                # plt.show()
-
-                if 'd2dwor' in type:
-                    result['d2dwor'] = edt_sq
-
-                if 'dvor' in type:
-                    dvor_input = np.zeros_like(kor_input)
-                    it = np.nditer(dvor_input, flags=['multi_index'], op_flags=['writeonly'])
-
-                    with it:
-                        while not it.finished:
-                            xp = inds[0, it.multi_index[0],  it.multi_index[1]]
-                            yp = inds[1, it.multi_index[0], it.multi_index[1]]
-
-                            it[0] = kor_input[ xp, yp]
-                            it.iternext()
-                    result['dvor'] = dvor_input
-
-                    # plt.imshow(edt_sq)
-                    # plt.colorbar()
-                    # plt.show()
-                    #
-                    # plt.imshow(dvor_input)
-                    # plt.colorbar()
-                    # plt.show()
+            if 'dvor' in type:
+                result['dvor'] = res_voronoi
+            if 'd2dwor' in type:
+                result['d2dwor'] = res_edt
 
 
-
-
-
-        if 'kgt' in type:
+        if 'kgt' in type or 'dvgt' in type or 'd2dwgt' in type:
             kgt_input = np.zeros_like(depth)
             for row in data_2d:
                 xp = int(math.floor(row[1]))
                 yp = int(math.floor(row[0]))
                 if (depth[xp, yp] > 0):
                     kgt_input[xp, yp] = depth[xp, yp]
-            result['kgt'] = kgt_input
+            res_voronoi, res_edt = self.calc_from_sparse_input(kgt_input, 'dvgt' in type)
 
-        if 'kde' in type:
+            if 'kgt' in type:
+                result['kgt'] = kgt_input
+            if 'dvgt' in type:
+                result['dvgt'] = res_voronoi
+            if 'd2dwgt' in type:
+                result['d2dwgt'] = res_edt
+
+        if 'kde' in type or 'dvde' in type or 'd2dwde' in type:
             kde_input = np.zeros_like(depth)
             for row in data_2d:
                 xp = int(math.floor(row[1]))
                 yp = int(math.floor(row[0]))
                 if (row[3] > 0):
                     kde_input[xp, yp] = row[3]
-            result['kde'] = kde_input
+
+            res_voronoi, res_edt = self.calc_from_sparse_input(kde_input, 'dvde' in type)
+
+            if 'kde' in type:
+                result['kde'] = kde_input
+            if 'dvde' in type:
+                result['dvde'] = res_voronoi
+            if 'd2dwde' in type:
+                result['d2dwde'] = res_edt
 
         if 'wkde' in type:
             kde_input = np.zeros_like(depth)
@@ -322,10 +329,6 @@ class MyDataloaderExt(data.Dataset):
 
             if 'wdde' in type:
                 result['wdde'] = np.array(dense_data[4, :, :])
-
-
-
-
 
         return result
 
