@@ -137,6 +137,9 @@ def main():
         elif args.arch == 'resnet18':
             model = ResNet(layers=18, decoder=args.decoder, output_size=train_loader.dataset.output_size,
                 in_channels=in_channels, pretrained=args.pretrained)
+        elif args.arch == 'resnet34':
+            model = ResNet(layers=34, decoder=args.decoder, output_size=train_loader.dataset.output_size,
+                in_channels=in_channels, pretrained=args.pretrained)
         elif args.arch == 'depthcompnet18':
             model = DepthCompletionNet(layers=18,modality_format=g_modality.format,
                                        pretrained=args.pretrained)

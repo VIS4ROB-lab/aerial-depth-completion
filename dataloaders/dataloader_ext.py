@@ -183,12 +183,12 @@ class MyDataloaderExt(data.Dataset):
     # d3dwde - 3d euclidian distance to closest the denoised slam keypoint
     # d3dwor - 3d euclidian distance to closest the slam keypoint
 
-    def calc_from_sparse_input(self,in_sparse_map,voronoi=True):
+    def calc_from_sparse_input(self,in_sparse_map,voronoi=True,edt=True):
 
         res_voronoi = None
         res_edt = None
 
-        if voronoi or edt:
+        if voronoi or edt: 
             mask = (in_sparse_map < epsilon)
             edt_result = ndimage.distance_transform_edt(mask, return_indices=voronoi)
             res_edt = np.sqrt(edt_result[0])
@@ -249,7 +249,7 @@ class MyDataloaderExt(data.Dataset):
                 if (row[2] > 0):
                     kor_input[xp, yp] = row[2]
 
-            res_voronoi,res_edt = self.calc_from_sparse_input(kor_input,'dvor' in type)
+            res_voronoi,res_edt = self.calc_from_sparse_input(kor_input,'dvor' in type,'d2dwor' in type)
 
             if 'kor' in type:
                 result['kor'] = kor_input
@@ -266,7 +266,7 @@ class MyDataloaderExt(data.Dataset):
                 yp = int(math.floor(row[0]))
                 if (depth[xp, yp] > 0):
                     kgt_input[xp, yp] = depth[xp, yp]
-            res_voronoi, res_edt = self.calc_from_sparse_input(kgt_input, 'dvgt' in type)
+            res_voronoi, res_edt = self.calc_from_sparse_input(kgt_input, 'dvgt' in type,'d2dwgt' in type)
 
             if 'kgt' in type:
                 result['kgt'] = kgt_input
@@ -283,7 +283,7 @@ class MyDataloaderExt(data.Dataset):
                 if (row[3] > 0):
                     kde_input[xp, yp] = row[3]
 
-            res_voronoi, res_edt = self.calc_from_sparse_input(kde_input, 'dvde' in type)
+            res_voronoi, res_edt = self.calc_from_sparse_input(kde_input, 'dvde' in type,'d2dwde' in type)
 
             if 'kde' in type:
                 result['kde'] = kde_input
