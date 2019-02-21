@@ -154,15 +154,15 @@ def main():
         elif args.arch == 'weightcompnet18':
             model = DepthWeightCompletionNet(layers=18,
                                        modality_format=g_modality.format,
-                                       pretrained=args.pretrained)
+                                       pretrained=args.pretrained,dw_head_type=args.depth_weight_head_type)
         elif args.arch == 'weightcompnet34':
             model = DepthWeightCompletionNet(layers=34,
                                        modality_format=g_modality.format,
-                                       pretrained=args.pretrained)
+                                       pretrained=args.pretrained,dw_head_type=args.depth_weight_head_type)
         elif args.arch == 'weightcompnet50':
             model = DepthWeightCompletionNet(layers=50,
                                        modality_format=g_modality.format,
-                                       pretrained=args.pretrained)
+                                       pretrained=args.pretrained,dw_head_type=args.depth_weight_head_type)
 
 
 

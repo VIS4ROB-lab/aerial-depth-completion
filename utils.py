@@ -14,6 +14,7 @@ def parse_command():
     model_names = ['resnet18', 'resnet34', 'resnet50','depthcompnet18','depthcompnet34','depthcompnet50','weightcompnet18','weightcompnet34','weightcompnet50']
     loss_names = ['l1', 'l2']
     data_names = ['nyudepthv2', 'kitti', 'visim']
+    depth_weight_head_type_names = ['CBR','ResBlock1']
     from dataloaders.dense_to_sparse import UniformSampling, SimulatedStereo
     sparsifier_names = [x.name for x in [UniformSampling, SimulatedStereo]]
     from models import Decoder
@@ -25,6 +26,9 @@ def parse_command():
     parser = argparse.ArgumentParser(description='Aerial Depth Completion')
     parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet18', choices=model_names,
                         help='model architecture: ' + ' | '.join(model_names) + ' (default: resnet18)')
+    parser.add_argument('--depth-weight-head-type', '-dwht', metavar='TYPE', default='CBR', choices=depth_weight_head_type_names,
+                        help='head architecture: ' + ' | '.join(depth_weight_head_type_names) + ' (default: CBR)')
+
     parser.add_argument('--data', metavar='DATA', default='visim',
                         choices=data_names,
                         help='dataset: ' + ' | '.join(data_names) + ' (default: nyudepthv2)')
