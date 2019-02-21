@@ -128,8 +128,13 @@ def main():
     # create new model
     else:
 
+
+        if os.path.isfile( args.pretrained):
+            checkpoint_premodel = torch.load(args.pretrained)
+            args.pretrained =  checkpoint_premodel['model']
+
         train_loader, val_loader = create_data_loaders(args)
-        print("=> creating Model ({}-{}) ...".format(args.arch, args.decoder))
+        print("=> creating Model ({}-{}-{}) ...".format(args.arch, args.decoder, args.depth_weight_head_type))
         in_channels = g_modality.num_channels()
         if args.arch == 'resnet50':
             model = ResNet(layers=50, decoder=args.decoder, output_size=train_loader.dataset.output_size,

@@ -86,7 +86,7 @@ def convt_bn_relu(in_channels, out_channels, kernel_size, \
 
 class DepthCompletionNet(nn.Module):
     def __init__(self, layers=18,modality_format='rgbd',pretrained=True):
-        self.version = 'dc_v1'
+        #self.version = 'dc_v1'
 
         self.modality = modality_format
 
@@ -253,7 +253,7 @@ class DepthWeightCompletionNet(nn.Module):
             self.load_from_depth_completion_net(pretrained,dw_head_type=dw_head_type)
 
     def load_from_depth_completion_net(self,pretrained_model,dw_head_type):
-        assert(pretrained_model.version == 'dc_v1')
+        #assert(pretrained_model.version == 'dc_v1')
         super(DepthWeightCompletionNet, self).__init__()
         self.version = 'dwc_v1'
 

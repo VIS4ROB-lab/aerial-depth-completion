@@ -67,12 +67,22 @@ def parse_command():
                         metavar='N', help='print frequency (default: 10)')
     parser.add_argument('--resume', default='', type=str, metavar='PATH',
                         help='path to latest checkpoint (default: none)')
+    parser.add_argument('--pretrained', default='resnet', type=str, metavar='PATH',
+                        help='path to pretraining checkpoint (default: buildin resnet)')
     parser.add_argument('-e', '--evaluate', dest='evaluate', type=str, default='',
                         help='evaluate model on validation set')
     parser.add_argument('--no-pretrain', dest='pretrained', action='store_false',
                         help='not to use ImageNet pre-trained weights')
-    parser.set_defaults(pretrained=True)
+    #parser.set_defaults(pretrained=True)
     args = parser.parse_args()
+
+
+    if args.pretrained == 'resnet':
+        args.pretrained = True
+    elif args.pretrained != '':
+        assert os.path.isfile(args.pretrained)
+    else:
+        args.pretrained = False
 
     if not Modality.validate_static(args.modality):
         print("input modality with problem")
@@ -109,10 +119,10 @@ def adjust_learning_rate(optimizer, epoch, lr_init,lr_step,lr_min):
 
 def get_output_directory(args):
     output_directory = os.path.join('results',
-        '{}.sparsifier={}.samples={}.modality={}.arch={}.criterion={}.divider={}.lr={}.lrs={}.bs={}.pretrained={}'.
-        format(args.data, args.sparsifier, args.num_samples, args.modality, \
+        '{}.dw_head={}.samples={}.modality={}.arch={}.criterion={}.divider={}.lr={}.lrs={}.bs={}.pretrained={}'.
+        format(args.data, args.depth_weight_head_type, args.num_samples, args.modality, \
             args.arch,  args.criterion, args.depth_divider, args.lr,args.lrs, args.batch_size, \
-            args.pretrained))
+            'file' if args.pretrained else str(args.pretrained)))
     return output_directory
 
 
@@ -145,7 +155,9 @@ def merge_into_row_with_gt(input, depth_input, depth_target, depth_pred):
     depth_target_cpu = np.squeeze(depth_target.cpu().numpy())
     depth_pred_cpu = np.squeeze(depth_pred.data.cpu().numpy())
 
-    d_min = min(np.min(depth_input_cpu), np.min(depth_target_cpu), np.min(depth_pred_cpu))
+    mask = np.logical_and(depth_input_cpu > 10e-5 ,  depth_target_cpu > 10e-5)
+
+    d_min = min(np.min(depth_input_cpu[mask]), np.min(depth_target_cpu[mask]), np.min(depth_pred_cpu))
     d_max = max(np.max(depth_input_cpu), np.max(depth_target_cpu), np.max(depth_pred_cpu))
     depth_input_col = colored_depthmap(depth_input_cpu, d_min, d_max)
     depth_target_col = colored_depthmap(depth_target_cpu, d_min, d_max)
