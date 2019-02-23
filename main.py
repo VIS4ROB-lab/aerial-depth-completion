@@ -90,7 +90,7 @@ def create_data_loaders(args):
 
 def main():
     global args, best_result, output_directory, train_csv, test_csv
-
+    output_directory = utils.get_output_directory(args)
     # evaluation mode
     start_epoch = 0
     if args.evaluate:
@@ -187,7 +187,7 @@ def main():
         criterion = criteria.MaskedL1Loss().cuda()
 
     # create results folder, if not already exists
-    output_directory = utils.get_output_directory(args)
+
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
     train_csv = os.path.join(output_directory, 'train.csv')

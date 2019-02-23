@@ -118,11 +118,17 @@ def adjust_learning_rate(optimizer, epoch, lr_init,lr_step,lr_min):
         param_group['lr'] = lr
 
 def get_output_directory(args):
+    if isinstance(args.pretrained, bool):
+        pretrain_text= str(args.pretrained)
+    else:
+        head, tail = os.path.split(args.pretrained)
+        pretrain_text=tail
+
     output_directory = os.path.join('results',
         '{}.dw_head={}.samples={}.modality={}.arch={}.criterion={}.divider={}.lr={}.lrs={}.bs={}.pretrained={}'.
         format(args.data, args.depth_weight_head_type, args.num_samples, args.modality, \
             args.arch,  args.criterion, args.depth_divider, args.lr,args.lrs, args.batch_size, \
-            'file' if args.pretrained else str(args.pretrained)))
+            pretrain_text))
     return output_directory
 
 
