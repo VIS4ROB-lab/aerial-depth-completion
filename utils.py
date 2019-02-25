@@ -5,9 +5,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from matplotlib.figure import Figure
+from scipy import ndimage
 from PIL import Image
 import cv2
 
+epsilon= np.finfo(float).eps
 cmap = plt.cm.viridis
 
 def parse_command():
@@ -155,11 +157,16 @@ def merge_into_row(input, depth_target, depth_pred):
     return img_merge
 
 
-def merge_into_row_with_gt(input, depth_input, depth_target, depth_pred):
+def merge_into_row_with_gt(input, depth_input, depth_target, depth_pred,normal_target=None):
     rgb = 255 * np.transpose(np.squeeze(input.cpu().numpy()), (1,2,0)) # H, W, C
     depth_input_cpu = np.squeeze(depth_input.cpu().numpy())
     depth_target_cpu = np.squeeze(depth_target.cpu().numpy())
     depth_pred_cpu = np.squeeze(depth_pred.data.cpu().numpy())
+    if normal_target is not None:
+        normal_target_cpu = 127.5 * (np.transpose(np.squeeze(normal_target.cpu().numpy()), (1,2,0))+1)
+    else:
+        normal_target_cpu = np.zeros_like(rgb)
+
 
     mask = np.logical_and(depth_input_cpu > 10e-5 ,  depth_target_cpu > 10e-5)
 
@@ -169,7 +176,7 @@ def merge_into_row_with_gt(input, depth_input, depth_target, depth_pred):
     depth_target_col = colored_depthmap(depth_target_cpu, d_min, d_max)
     depth_pred_col = colored_depthmap(depth_pred_cpu, d_min, d_max)
     hist = write_minmax(rgb.shape,d_min,d_max)
-    img_merge = np.hstack([rgb, depth_input_col, depth_target_col, depth_pred_col,hist])
+    img_merge = np.hstack([rgb, depth_input_col, depth_target_col,normal_target_cpu, depth_pred_col,hist])
 
     return img_merge
 
@@ -195,3 +202,50 @@ def add_row(img_merge, row):
 def save_image(img_merge, filename):
     img_merge = Image.fromarray(img_merge.astype('uint8'))
     img_merge.save(filename)
+
+def depth_to_normal_map(depth,use_sobel=True,dtype='uint8'):
+
+    if use_sobel:
+        zx = cv2.Sobel(depth, cv2.CV_64F, 1, 0, ksize=5,scale=1/128.) # or ksize=3 and scale=1/8.
+        zy = cv2.Sobel(depth, cv2.CV_64F, 0, 1, ksize=5,scale=1/128.) # or ksize=3 and scale=1/8.
+        nx, ny, nz = zx, -zy, np.ones_like(depth)
+    else:
+        zy, zx = np.gradient(depth.astype(np.float32))
+        nx,ny,nz = zx,  -zy, np.ones_like(depth) # x left-right, y down-up
+
+    normal = np.dstack((nx,ny,nz))
+    n = np.linalg.norm(normal, axis=2)
+    normal[:, :, 0] /= n
+    normal[:, :, 1] /= n
+    normal[:, :, 2] /= n
+
+    if dtype == 'uint8':
+        normal[:, :, :] += 1
+        normal[:, :, :] *= 127.5
+        #normal[:, :, :] /= 2
+        #normal[:, :, :] *= 255
+
+    return normal.astype(dtype)
+
+def calc_from_sparse_input( in_sparse_map, voronoi=True, edt=True):
+    res_voronoi = None
+    res_edt = None
+
+    if voronoi or edt:
+        mask = (in_sparse_map < epsilon)
+        edt_result = ndimage.distance_transform_edt(mask, return_indices=voronoi)
+        res_edt = np.sqrt(edt_result[0])
+
+        if voronoi:
+            res_voronoi = np.zeros_like(in_sparse_map)
+            it = np.nditer(res_voronoi, flags=['multi_index'], op_flags=['writeonly'])
+
+            with it:
+                while not it.finished:
+                    xp = edt_result[1][0, it.multi_index[0], it.multi_index[1]]
+                    yp = edt_result[1][1, it.multi_index[0], it.multi_index[1]]
+
+                    it[0] = in_sparse_map[xp, yp]
+                    it.iternext()
+
+    return res_voronoi, res_edt

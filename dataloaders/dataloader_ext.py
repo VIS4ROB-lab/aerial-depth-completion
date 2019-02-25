@@ -35,8 +35,12 @@ def rgb2grayscale(rgb):
 
 class Modality():
     #modality_names = ['rgb', 'grey', 'fd', 'kor', 'kgt', 'kw', 'kde', 'dor', 'dde', 'dvor', 'd2dwor', 'd3dwde','d3dwor','wkde','wdde']
-    depth_channels_names = ['fd', 'kor', 'kde', 'kgt', 'dor', 'dde', 'dvor', 'dvgt', 'dvde']
-    weight_names = ['d2dwde','d2dwgt','d2dwor', 'd3dwde','d3dwor', 'kw','wkde','wdde']
+
+    depth_channels_names = ['fd', 'kor', 'kde', 'kgt', 'dor', 'dde', 'dvor', 'dvgt', 'dvde','dore','ddee']
+    metric_weight_names = ['d3dwde','d3dwor','wkde','wdde']
+    image_size_weight_names = ['d2dwde','d2dwgt','d2dwor']
+    weight_names = image_size_weight_names + ['kw'] + metric_weight_names
+    need_divider = depth_channels_names + ['gt_depth'] + metric_weight_names
     color_names = ['rgb', 'grey']
     modality_names = color_names+depth_channels_names+weight_names
 
@@ -207,6 +211,9 @@ class MyDataloaderExt(data.Dataset):
 
         return res_voronoi,res_edt
 
+ #   def h5_preprocess(self,index):
+
+
     def h5_loader_general(self,index,type):
         result = dict()
         path, target = self.imgs[index]
@@ -218,6 +225,11 @@ class MyDataloaderExt(data.Dataset):
         mask_array = depth > 10000 # in this software inf distance is zero.
         depth[mask_array] = 0
         result['gt_depth'] = depth
+        normal_rescaled = ((np.array(h5f['normal_data'],dtype='float32')/127.5) - 1.0)
+        result['normal_x'] = normal_rescaled[0,:,:]
+        result['normal_y'] = normal_rescaled[1, :, :]
+        result['normal_z'] = normal_rescaled[2, :, :]
+
 
         # color data
 
@@ -241,7 +253,7 @@ class MyDataloaderExt(data.Dataset):
 
 
 
-        if 'kor' in type or 'dvor' in type or 'd2dwor' in type:
+        if 'kor' in type:
             kor_input = np.zeros_like(depth)
             for row in data_2d:
                 xp = int(math.floor(row[1]))
@@ -249,14 +261,14 @@ class MyDataloaderExt(data.Dataset):
                 if (row[2] > 0):
                     kor_input[xp, yp] = row[2]
 
-            res_voronoi,res_edt = self.calc_from_sparse_input(kor_input,'dvor' in type,'d2dwor' in type)
+            #res_voronoi,res_edt = self.calc_from_sparse_input(kor_input,'dvor' in type,'d2dwor' in type)
 
             if 'kor' in type:
                 result['kor'] = kor_input
-            if 'dvor' in type:
-                result['dvor'] = res_voronoi
-            if 'd2dwor' in type:
-                result['d2dwor'] = res_edt
+            # if 'dvor' in type:
+            #     result['dvor'] = res_voronoi
+            # if 'd2dwor' in type:
+            #     result['d2dwor'] = res_edt
 
 
         if 'kgt' in type or 'dvgt' in type or 'd2dwgt' in type:
@@ -312,23 +324,36 @@ class MyDataloaderExt(data.Dataset):
             result['kw'] = kw_input
 
 
-        if 'dor' in type or 'dde' in type or 'd3dwor' in type or 'd3dwde' in type or 'wdde' in type:
-            dense_data = h5f['dense_image_data']
+        if 'dor' in type:
+            result['dor'] = np.array(dense_data[1, :, :])
 
-            if 'dor' in type:
-                result['dor'] = np.array(dense_data[1, :, :])
+        if 'dore' in type:
+            result['dore'] = np.array(dense_data[1, :, :])
+            dore_mask = result['dore'] < epsilon
+            result['dore'][dore_mask] = np.array(dense_data[2, :, :])[dore_mask]
 
-            if 'dde' in type:
-                result['dde'] = np.array(dense_data[4, :, :])
+        if 'd3dwor' in type:
+            result['d3dwor'] = np.array(dense_data[3, :, :])
 
-            if 'd3dwor' in type:
-                result['d3dwor'] = np.array(dense_data[3, :, :])
+        if 'dvor' in type:
+            result['dvor'] = np.array(dense_data[2, :, :])
 
-            if 'd3dwde' in type:
-                result['d3dwde'] = np.array(dense_data[6, :, :])
+        if 'd2dwor' in type:
+            result['d2dwor'] = np.array(dense_data[5, :, :])
 
-            if 'wdde' in type:
-                result['wdde'] = np.array(dense_data[4, :, :])
+        if 'dde' in type:
+            result['dde'] = np.array(dense_data[4, :, :])
+
+        if 'ddee' in type:
+            result['ddee'] = np.array(dense_data[4, :, :])
+            dore_mask = result['ddee'] < epsilon
+            result['ddee'][dore_mask] = np.array(dense_data[2, :, :])[dore_mask]
+
+        if 'd3dwde' in type:
+            result['d3dwde'] = np.array(dense_data[6, :, :])
+
+        if 'wdde' in type:
+            result['wdde'] = np.array(dense_data[4, :, :])
 
         return result
 
@@ -371,9 +396,9 @@ class MyDataloaderExt(data.Dataset):
         else:
             raise (RuntimeError("transform not defined"))
 
-        for key, value in channels_transformed_np.items():
-            if key == 'gt_depth':
-                continue
+        # for key, value in channels_transformed_np.items():
+        #     if key == 'gt_depth':
+        #         continue
 
         num_image_channel,image_channel = self.modality.get_input_image_channel()
         if num_image_channel > 0:
@@ -388,7 +413,14 @@ class MyDataloaderExt(data.Dataset):
             input_np = self.append_tensor3d(input_np, channels_transformed_np[weight_channel])
 
         input_tensor = self.to_tensor(input_np)
-        target_depth_tensor = self.to_tensor(channels_transformed_np['gt_depth']).unsqueeze(0)
+        target_data = None
+        target_data = np.stack([channels_transformed_np['gt_depth'],channels_transformed_np['normal_x'],channels_transformed_np['normal_y'],channels_transformed_np['normal_z']])
+        # target_data = self.append_tensor3d(target_data,channels_transformed_np['gt_depth'])
+        # target_data = self.append_tensor3d(target_data, channels_transformed_np['normal_x'])
+        # target_data = self.append_tensor3d(target_data, channels_transformed_np['normal_y'])
+        # target_data = self.append_tensor3d(target_data, channels_transformed_np['normal_z'])
+
+        target_depth_tensor = self.to_tensor(target_data)
 
 
         #target_depth_tensor = depth_tensor.unsqueeze(0)

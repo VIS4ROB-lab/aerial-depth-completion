@@ -253,8 +253,9 @@ def train(train_loader, model, criterion, optimizer, epoch):
 
         # compute pred
         end = time.time()
+        target_depth = target[:, 0:1, :, :]
         pred = model(input)
-        loss = criterion(pred, target)
+        loss = criterion(pred, target_depth)
 
         if loss is None:
             print('ignoring image, no valid pixel')
@@ -269,7 +270,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
 
         # measure accuracy and record loss
         result = Result()
-        result.evaluate(pred.data*args.depth_divider, target.data*args.depth_divider)
+        result.evaluate(pred.data*args.depth_divider, target_depth.data*args.depth_divider)
         average_meter.update(result, gpu_time, data_time, input.size(0))
         end = time.time()
 
@@ -309,10 +310,11 @@ def validate(val_loader, model, epoch, write_to_file=True):
             pred = model(input)
         #torch.cuda.synchronize()
         gpu_time = 0 #time.time() - end
-
+        target_depth = target[:, 0:1, :, :]
+        target_normal = target[:, 1:4, :, :]
         # measure accuracy and record loss
         result = Result()
-        result.evaluate(pred.data*args.depth_divider, target.data*args.depth_divider)
+        result.evaluate(pred.data*args.depth_divider, target_depth.data*args.depth_divider)
         average_meter.update(result, gpu_time, data_time, input.size(0))
         end = time.time()
 
@@ -334,19 +336,21 @@ def validate(val_loader, model, epoch, write_to_file=True):
         else:
             rgb = torch.zeros(input[:, 0:1, :, :].size()).expand(-1,3,-1,-1)
 
+
+
         depth_nchannels,_ = g_modality.get_input_depth_channel()
         if(depth_nchannels == 1):
             depth = input[:,image_nchannels:(image_nchannels+1),:,:]*args.depth_divider
         else:
             depth = torch.zeros(input[:, 0:1, :, :].size())
 
-        target_img = target*args.depth_divider
+        target_img = target_depth*args.depth_divider
         pred_img = pred * args.depth_divider
 
         if i == 0:
-            img_merge = utils.merge_into_row_with_gt(rgb, depth, target_img, pred_img)
+            img_merge = utils.merge_into_row_with_gt(rgb, depth, target_img, pred_img,target_normal)
         elif (i < 8*skip) and (i % skip == 0):
-            row = utils.merge_into_row_with_gt(rgb, depth, target_img, pred_img)
+            row = utils.merge_into_row_with_gt(rgb, depth, target_img, pred_img,target_normal)
             img_merge = utils.add_row(img_merge, row)
         elif i == 8*skip:
             filename = output_directory + '/comparison_' + str(epoch) + '.png'

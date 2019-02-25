@@ -1,6 +1,6 @@
 import numpy as np
 import dataloaders.transforms as transforms
-from dataloaders.dataloader_ext import MyDataloaderExt
+from dataloaders.dataloader_ext import MyDataloaderExt,Modality
 
 iheight, iwidth = 480, 752 # raw image size
 
@@ -39,9 +39,9 @@ class VISIMDataset(MyDataloaderExt):
 
         for key, value in attrib_list.items():
             attrib_np[key] = transform(value)
-            if key in ['gt_depth','fd','kor','kde','kgt','dor','dde', 'd3dwde','d3dwor','dvor','dvde','dvgt']:
+            if key in Modality.need_divider: #['gt_depth','fd','kor','kde','kgt','dor','dde', 'd3dwde','d3dwor','dvor','dvde','dvgt']:
                 attrib_np[key] = attrib_np[key]  / self.depth_divider
-            elif key in ['d2dwor', 'd2dwde', 'd2dwgt']:
+            elif key in  Modality.image_size_weight_names: #['d2dwor', 'd2dwde', 'd2dwgt']:
                 attrib_np[key] = attrib_np[key] / (iwidth * 1.5)  # 1.5 about sqrt(2)- square's diagonal
 
         if 'rgb' in attrib_np:
@@ -65,9 +65,9 @@ class VISIMDataset(MyDataloaderExt):
 
         for key, value in attrib_list.items():
             attrib_np[key] = transform(value)
-            if key in ['gt_depth','fd','kor','kde','kgt','dor','dde', 'd3dwde','d3dwor','dvor','dvde','dvgt']:
+            if key in Modality.need_divider:  #['gt_depth','fd','kor','kde','kgt','dor','dde', 'd3dwde','d3dwor','dvor','dvde','dvgt']:
                 attrib_np[key] = attrib_np[key]  / self.depth_divider
-            elif key in ['d2dwor','d2dwde','d2dwgt']:
+            elif key in Modality.image_size_weight_names:
                 attrib_np[key] = attrib_np[key] / (iwidth*1.5)#1.5 about sqrt(2)- square's diagonal
             elif key == 'rgb':
                 attrib_np[key] = (np.asfarray(attrib_np[key], dtype='float') / 255).transpose((2, 0, 1))
