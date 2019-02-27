@@ -225,10 +225,11 @@ class MyDataloaderExt(data.Dataset):
         mask_array = depth > 10000 # in this software inf distance is zero.
         depth[mask_array] = 0
         result['gt_depth'] = depth
-        normal_rescaled = ((np.array(h5f['normal_data'],dtype='float32')/127.5) - 1.0)
-        result['normal_x'] = normal_rescaled[0,:,:]
-        result['normal_y'] = normal_rescaled[1, :, :]
-        result['normal_z'] = normal_rescaled[2, :, :]
+        if 'normal_data' in h5f:
+            normal_rescaled = ((np.array(h5f['normal_data'],dtype='float32')/127.5) - 1.0)
+            result['normal_x'] = normal_rescaled[0,:,:]
+            result['normal_y'] = normal_rescaled[1, :, :]
+            result['normal_z'] = normal_rescaled[2, :, :]
 
 
         # color data

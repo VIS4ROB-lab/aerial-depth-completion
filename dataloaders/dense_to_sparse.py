@@ -41,6 +41,8 @@ class UniformSampling(DenseToSparse):
         else:
             if self.num_samples == -1 :
                 prob = np.random.randint(5, 100,1)/100.0
+            elif self.num_samples == -2 :
+                prob = np.random.randint(5, 100,1)/1000.0
             else:
                 prob = float(self.num_samples) / n_keep
             return np.bitwise_and(mask_keep, np.random.uniform(0, 1, depth.shape) < prob)
