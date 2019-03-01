@@ -114,7 +114,7 @@ class MaskedL2GradNormalLoss(nn.Module):
 
         loss_dx = torch.log(torch.abs((output_grad_dx - depth_grad_dx)[valid_mask]) + 0.5).mean()
         loss_dy = torch.log(torch.abs((output_grad_dy - depth_grad_dy)[valid_mask]) + 0.5).mean()
-        loss_normal = 10* torch.abs(1 - self.cos(self.output_normal, self.depth_normal)[valid_mask[:,0,:,:]]).mean()
+        loss_normal = 100* torch.abs(1 - self.cos(self.output_normal, self.depth_normal)[valid_mask[:,0,:,:]]).mean()
 
         self.loss = [loss_depth.cpu().detach().numpy() , loss_normal.cpu().detach().numpy() , (loss_dx + loss_dy).cpu().detach().numpy()]
 
