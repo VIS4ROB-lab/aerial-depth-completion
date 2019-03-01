@@ -14,7 +14,7 @@ cmap = plt.cm.viridis
 
 def parse_command():
     model_names = ['resnet18', 'resnet34', 'resnet50','depthcompnet18','depthcompnet34','depthcompnet50','weightcompnet18','weightcompnet34','weightcompnet50']
-    loss_names = ['l1', 'l2']
+    loss_names = ['l1', 'l2','l2gn']
     data_names = ['nyudepthv2', 'kitti', 'visim']
     depth_weight_head_type_names = ['CBR','ResBlock1']
     from dataloaders.dense_to_sparse import UniformSampling, SimulatedStereo
@@ -157,15 +157,20 @@ def merge_into_row(input, depth_target, depth_pred):
     return img_merge
 
 
-def merge_into_row_with_gt(input, depth_input, depth_target, depth_pred,normal_target=None):
+def merge_into_row_with_gt(input, depth_input, depth_target, depth_pred,normal_target=None,normal_pred=None):
     rgb = 255 * np.transpose(np.squeeze(input.cpu().numpy()), (1,2,0)) # H, W, C
     depth_input_cpu = np.squeeze(depth_input.cpu().numpy())
     depth_target_cpu = np.squeeze(depth_target.cpu().numpy())
     depth_pred_cpu = np.squeeze(depth_pred.data.cpu().numpy())
     if normal_target is not None:
-        normal_target_cpu = 127.5 * (np.transpose(np.squeeze(normal_target.cpu().numpy()), (1,2,0))+1)
+        normal_target_cpu = 255 * (np.transpose(np.squeeze(normal_target.cpu().numpy()), (1,2,0))+1)
     else:
         normal_target_cpu = np.zeros_like(rgb)
+
+    if normal_pred is not None:
+        normal_pred_cpu = 255 * (np.transpose(np.squeeze(normal_pred.cpu().numpy()), (1,2,0))+1)
+    else:
+        normal_pred_cpu = np.zeros_like(rgb)
 
 
     mask = np.logical_and(depth_input_cpu > 10e-5 ,  depth_target_cpu > 10e-5)
@@ -176,7 +181,7 @@ def merge_into_row_with_gt(input, depth_input, depth_target, depth_pred,normal_t
     depth_target_col = colored_depthmap(depth_target_cpu, d_min, d_max)
     depth_pred_col = colored_depthmap(depth_pred_cpu, d_min, d_max)
     hist = write_minmax(rgb.shape,d_min,d_max)
-    img_merge = np.hstack([rgb, depth_input_col, depth_target_col,normal_target_cpu, depth_pred_col,hist])
+    img_merge = np.hstack([rgb, depth_input_col, normal_target_cpu,normal_pred_cpu, depth_target_col, depth_pred_col,hist])
 
     return img_merge
 

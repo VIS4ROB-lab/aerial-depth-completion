@@ -23,7 +23,7 @@ g_modality = Modality(args.modality)
 
 fieldnames = ['mse', 'rmse', 'absrel', 'lg10', 'mae',
                 'delta1', 'delta2', 'delta3',
-                'data_time', 'gpu_time']
+                'data_time', 'gpu_time','loss0','loss1','loss2']
 best_result = Result()
 best_result.set_to_worst()
 
@@ -185,6 +185,9 @@ def main():
         criterion = criteria.MaskedMSELoss().cuda()
     elif args.criterion == 'l1':
         criterion = criteria.MaskedL1Loss().cuda()
+    elif args.criterion == 'l2gn':
+        criterion = criteria.MaskedL2GradNormalLoss().cuda()
+
 
     # create results folder, if not already exists
 
@@ -238,6 +241,9 @@ def main():
         }, is_best, epoch, output_directory)
 
 
+
+
+
 def train(train_loader, model, criterion, optimizer, epoch):
     average_meter = AverageMeter()
 
@@ -255,7 +261,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
         end = time.time()
         target_depth = target[:, 0:1, :, :]
         pred = model(input)
-        loss = criterion(pred, target_depth)
+        loss = criterion(pred, target_depth,epoch)
 
         if loss is None:
             print('ignoring image, no valid pixel')
@@ -271,7 +277,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
         # measure accuracy and record loss
         result = Result()
         result.evaluate(pred.data*args.depth_divider, target_depth.data*args.depth_divider)
-        average_meter.update(result, gpu_time, data_time, input.size(0))
+        average_meter.update(result, gpu_time, data_time,criterion.loss, input.size(0))
         end = time.time()
 
         if (i + 1) % args.print_freq == 0:
@@ -283,21 +289,23 @@ def train(train_loader, model, criterion, optimizer, epoch):
                   'MAE={result.mae:.2f}({average.mae:.2f}) '
                   'Delta1={result.delta1:.3f}({average.delta1:.3f}) '
                   'REL={result.absrel:.3f}({average.absrel:.3f}) '
-                  'Lg10={result.lg10:.3f}({average.lg10:.3f}) '.format(
+                  'Lg10={result.lg10:.3f}({average.lg10:.3f}) '
+                  'Loss={losses[0]}/{losses[1]}/{losses[2]} '.format(
                   epoch, i+1, len(train_loader), data_time=data_time,
-                  gpu_time=gpu_time, result=result, average=average_meter.average()))
+                  gpu_time=gpu_time, result=result, average=average_meter.average(),losses=criterion.loss))
 
     avg = average_meter.average()
     with open(train_csv, 'a') as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writerow({'mse': avg.mse, 'rmse': avg.rmse, 'absrel': avg.absrel, 'lg10': avg.lg10,
             'mae': avg.mae, 'delta1': avg.delta1, 'delta2': avg.delta2, 'delta3': avg.delta3,
-            'gpu_time': avg.gpu_time, 'data_time': avg.data_time})
+            'gpu_time': avg.gpu_time, 'data_time': avg.data_time,'loss0': avg.loss0,'loss1': avg.loss1,'loss2': avg.loss2})
 
 
 def validate(val_loader, model, epoch, write_to_file=True):
     average_meter = AverageMeter()
     model.eval() # switch to evaluate mode
+    normal_eval = criteria.MaskedL2GradNormalLoss().cuda().eval()
     end = time.time()
     for i, (input, target) in enumerate(val_loader):
         input, target = input.cuda(), target.cuda()
@@ -310,12 +318,17 @@ def validate(val_loader, model, epoch, write_to_file=True):
             pred = model(input)
         #torch.cuda.synchronize()
         gpu_time = 0 #time.time() - end
+
         target_depth = target[:, 0:1, :, :]
-        target_normal = target[:, 1:4, :, :]
+        #target_normal = target[:, 1:4, :, :]
+
+        normal_eval(pred, target_depth)
+        pred_normal, target_normal = normal_eval.get_extra_visualization()
+
         # measure accuracy and record loss
         result = Result()
         result.evaluate(pred.data*args.depth_divider, target_depth.data*args.depth_divider)
-        average_meter.update(result, gpu_time, data_time, input.size(0))
+        average_meter.update(result, gpu_time, data_time,normal_eval.loss, input.size(0))
         end = time.time()
 
         # save 8 images for visualization
@@ -348,9 +361,9 @@ def validate(val_loader, model, epoch, write_to_file=True):
         pred_img = pred * args.depth_divider
 
         if i == 0:
-            img_merge = utils.merge_into_row_with_gt(rgb, depth, target_img, pred_img,target_normal)
+            img_merge = utils.merge_into_row_with_gt(rgb, depth, target_img, pred_img,target_normal,pred_normal)
         elif (i < 8*skip) and (i % skip == 0):
-            row = utils.merge_into_row_with_gt(rgb, depth, target_img, pred_img,target_normal)
+            row = utils.merge_into_row_with_gt(rgb, depth, target_img, pred_img,target_normal,pred_normal)
             img_merge = utils.add_row(img_merge, row)
         elif i == 8*skip:
             filename = output_directory + '/comparison_' + str(epoch) + '.png'
@@ -363,8 +376,9 @@ def validate(val_loader, model, epoch, write_to_file=True):
                   'MAE={result.mae:.2f}({average.mae:.2f}) '
                   'Delta1={result.delta1:.3f}({average.delta1:.3f}) '
                   'REL={result.absrel:.3f}({average.absrel:.3f}) '
-                  'Lg10={result.lg10:.3f}({average.lg10:.3f}) '.format(
-                   i+1, len(val_loader), gpu_time=gpu_time, result=result, average=average_meter.average()))
+                  'Lg10={result.lg10:.3f}({average.lg10:.3f}) '
+                  'Loss={loss0}/{loss1}/{loss2} '.format(
+                   i+1, len(val_loader), gpu_time=gpu_time, result=result, average=average_meter.average(),loss0=normal_eval.loss[0],loss1=normal_eval.loss[1],loss2=normal_eval.loss[2]))
 
     avg = average_meter.average()
 
@@ -382,7 +396,7 @@ def validate(val_loader, model, epoch, write_to_file=True):
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writerow({'mse': avg.mse, 'rmse': avg.rmse, 'absrel': avg.absrel, 'lg10': avg.lg10,
                 'mae': avg.mae, 'delta1': avg.delta1, 'delta2': avg.delta2, 'delta3': avg.delta3,
-                'data_time': avg.data_time, 'gpu_time': avg.gpu_time})
+                'data_time': avg.data_time, 'gpu_time': avg.gpu_time,'loss0': avg.loss0,'loss1': avg.loss1,'loss2': avg.loss2})
     return avg, img_merge
 
 if __name__ == '__main__':

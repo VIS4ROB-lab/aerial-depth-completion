@@ -415,13 +415,14 @@ class MyDataloaderExt(data.Dataset):
 
         input_tensor = self.to_tensor(input_np)
         target_data = None
-        target_data = np.stack([channels_transformed_np['gt_depth'],channels_transformed_np['normal_x'],channels_transformed_np['normal_y'],channels_transformed_np['normal_z']])
+        target_data = channels_transformed_np['gt_depth']
+        #np.stack([channels_transformed_np['gt_depth'],channels_transformed_np['normal_x'],channels_transformed_np['normal_y'],channels_transformed_np['normal_z']])
         # target_data = self.append_tensor3d(target_data,channels_transformed_np['gt_depth'])
         # target_data = self.append_tensor3d(target_data, channels_transformed_np['normal_x'])
         # target_data = self.append_tensor3d(target_data, channels_transformed_np['normal_y'])
         # target_data = self.append_tensor3d(target_data, channels_transformed_np['normal_z'])
 
-        target_depth_tensor = self.to_tensor(target_data)
+        target_depth_tensor = self.to_tensor(target_data).unsqueeze(0)
 
 
         #target_depth_tensor = depth_tensor.unsqueeze(0)
