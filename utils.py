@@ -16,7 +16,7 @@ def parse_command():
     model_names = ['resnet18', 'resnet34', 'resnet50','depthcompnet18','depthcompnet34','depthcompnet50','weightcompnet18','weightcompnet34','weightcompnet50']
     loss_names = ['l1', 'l2','l2gn']
     data_names = ['nyudepthv2', 'kitti', 'visim']
-    depth_weight_head_type_names = ['CBR','ResBlock1']
+    depth_weight_head_type_names = ['CBR','ResBlock1','JOIN']
     from dataloaders.dense_to_sparse import UniformSampling, SimulatedStereo
     sparsifier_names = [x.name for x in [UniformSampling, SimulatedStereo]]
     from models import Decoder
@@ -163,12 +163,12 @@ def merge_into_row_with_gt(input, depth_input, depth_target, depth_pred,normal_t
     depth_target_cpu = np.squeeze(depth_target.cpu().numpy())
     depth_pred_cpu = np.squeeze(depth_pred.data.cpu().numpy())
     if normal_target is not None:
-        normal_target_cpu = 255 * (np.transpose(np.squeeze(normal_target.cpu().numpy()), (1,2,0))+1)
+        normal_target_cpu = 127.5 * (np.transpose(np.squeeze(normal_target.cpu().numpy()), (1,2,0))+1)
     else:
         normal_target_cpu = np.zeros_like(rgb)
 
     if normal_pred is not None:
-        normal_pred_cpu = 255 * (np.transpose(np.squeeze(normal_pred.cpu().numpy()), (1,2,0))+1)
+        normal_pred_cpu = 127.5 * (np.transpose(np.squeeze(normal_pred.cpu().numpy()), (1,2,0))+1)
     else:
         normal_pred_cpu = np.zeros_like(rgb)
 

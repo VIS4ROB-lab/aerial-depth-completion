@@ -233,20 +233,23 @@ class DepthWeightCompletionNet(nn.Module):
         assert ( layers in [18, 34, 50, 101, 152]), 'Only layers 18, 34, 50, 101, and 152 are defined, but got {}'.format(layers)
         super(DepthWeightCompletionNet, self).__init__()
         used_channels = 0
-
-        if 'dw' in self.modality:
-            channels = 64 // (len(self.modality) - 1)
-            self.conv1_d = build_dw_head(2, channels,dw_head_type)
-        elif 'd' in self.modality:
-            channels = 64 // len(self.modality)
-            self.conv1_d = conv_bn_relu(1, channels, kernel_size=3, stride=1, padding=1)
-
-        if 'rgb' in self.modality:
-            channels = 64 * 3 // (len(self.modality)-1 if 'w' in self.modality else len(self.modality))
-            self.conv1_img = conv_bn_relu(3, channels, kernel_size=3, stride=1, padding=1)
-        elif 'g' in self.modality:
-            channels = 64 // (len(self.modality)-1 if 'w' in self.modality else len(self.modality))
-            self.conv1_img = conv_bn_relu(1, channels, kernel_size=3, stride=1, padding=1)
+        
+        if dw_head_type == 'JOIN':
+            self.conv1_a = conv_bn_relu(len(self.modality), 64, kernel_size=3, stride=1, padding=1)
+        else:
+            if 'dw' in self.modality:
+                channels = 64 // (len(self.modality) - 1)
+                self.conv1_d = build_dw_head(2, channels,dw_head_type)
+            elif 'd' in self.modality:
+                channels = 64 // len(self.modality)
+                self.conv1_d = conv_bn_relu(1, channels, kernel_size=3, stride=1, padding=1)
+    
+            if 'rgb' in self.modality:
+                channels = 64 * 3 // (len(self.modality)-1 if 'w' in self.modality else len(self.modality))
+                self.conv1_img = conv_bn_relu(3, channels, kernel_size=3, stride=1, padding=1)
+            elif 'g' in self.modality:
+                channels = 64 // (len(self.modality)-1 if 'w' in self.modality else len(self.modality))
+                self.conv1_img = conv_bn_relu(1, channels, kernel_size=3, stride=1, padding=1)
 
         pretrained_model = resnet.__dict__['resnet{}'.format(layers)](pretrained=pretrained)
         if not pretrained:
@@ -282,6 +285,7 @@ class DepthWeightCompletionNet(nn.Module):
 
     def __init__(self, layers=18, modality_format='rgbd', pretrained=True,dw_head_type='CBR'):
         self.modality = modality_format
+        self.dw_head_type = dw_head_type
         if isinstance(pretrained,bool):
             self.create_from_zoo(layers=layers, pretrained=pretrained,dw_head_type=dw_head_type)
         elif isinstance(pretrained,DepthCompletionNet):
@@ -291,15 +295,18 @@ class DepthWeightCompletionNet(nn.Module):
         #assert(pretrained_model.version == 'dc_v1')
         super(DepthWeightCompletionNet, self).__init__()
         self.version = 'dwc_v1'
-
-        if 'dw' in self.modality:
-            channels = 64 // (len(self.modality) - 1)
-            self.conv1_d = build_dw_head(2, channels,dw_head_type)
+        
+        if dw_head_type == 'JOIN':
+            self.conv1_a = conv_bn_relu(len(self.modality), 64, kernel_size=3, stride=1, padding=1)
         else:
-            assert(False) #dont make sense
+            if 'dw' in self.modality:
+                channels = 64 // (len(self.modality) - 1)
+                self.conv1_d = build_dw_head(2, channels,dw_head_type)
+            else:
+                assert(False) #dont make sense
 
-        if 'rgb' in self.modality or 'g' in self.modality:
-            self.conv1_img = pretrained_model.conv1_img
+            if 'rgb' in self.modality or 'g' in self.modality:
+                self.conv1_img = pretrained_model.conv1_img
 
         self.conv2 = pretrained_model.conv2
         self.conv3 = pretrained_model.conv3
@@ -322,27 +329,34 @@ class DepthWeightCompletionNet(nn.Module):
 
     def forward(self, x):
         channel_offset = 0;
+
+            
         # first layer
-        if 'rgb' in self.modality:
-            rgb = x[:, channel_offset:3, :, :]
-            conv1_img = self.conv1_img(rgb)
-            channel_offset = channel_offset +3
-        elif 'g' in self.modality:
-            g = x[:, channel_offset:1, :, :]
-            conv1_img = self.conv1_img(g)
-            channel_offset = channel_offset + 1
-
-        if 'dw' in self.modality:
-            d = x[:, channel_offset:(channel_offset+2), :, :]
-            conv1_d = self.conv1_d(d)
-        elif 'd' in self.modality:
-            d = x[:, channel_offset:(channel_offset + 1), :, :]
-            conv1_d = self.conv1_d(d)
-
-        if 'rgbd' in self.modality or 'gd' in self.modality:
-            conv1 = torch.cat((conv1_d, conv1_img),1)
+        if self.dw_head_type == 'JOIN':
+            conv1 = self.conv1_a(x)
         else:
-            conv1 = conv1_d if (self.modality=='d') else conv1_img
+            if 'rgb' in self.modality:
+                rgb = x[:, channel_offset:3, :, :]
+                conv1_img = self.conv1_img(rgb)
+                channel_offset = channel_offset +3
+            elif 'g' in self.modality:
+                g = x[:, channel_offset:1, :, :]
+                conv1_img = self.conv1_img(g)
+                channel_offset = channel_offset + 1
+    
+            if 'dw' in self.modality:
+                d = x[:, channel_offset:(channel_offset+2), :, :]
+                conv1_d = self.conv1_d(d)
+            elif 'd' in self.modality:
+                d = x[:, channel_offset:(channel_offset + 1), :, :]
+                conv1_d = self.conv1_d(d)
+    
+            if 'rgbd' in self.modality or 'gd' in self.modality:
+                conv1 = torch.cat((conv1_d, conv1_img),1)
+            else:
+                conv1 = conv1_d if (self.modality=='d') else conv1_img
+            
+                    
 
 
         conv2 = self.conv2(conv1)
