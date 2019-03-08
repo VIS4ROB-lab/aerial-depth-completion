@@ -4,6 +4,7 @@ import numpy as np
 import torch.utils.data as data
 import h5py
 import dataloaders.transforms as transforms
+from dataloaders.dataloader_ext import Modality
 
 IMG_EXTENSIONS = ['.h5',]
 
@@ -44,7 +45,7 @@ def h5_loader(path):
 to_tensor = transforms.ToTensor()
 
 class MyDataloader(data.Dataset):
-    modality_names = ['rgb', 'rgbd', 'd'] # , 'g', 'gd'
+    modality_names = ['rgb', 'rgb-kor', 'kor'] # , 'g', 'gd'
     color_jitter = transforms.ColorJitter(0.4, 0.4, 0.4)
 
     def __init__(self, root, type, sparsifier=None, modality='rgb', loader=h5_loader):
@@ -66,9 +67,12 @@ class MyDataloader(data.Dataset):
         self.loader = loader
         self.sparsifier = sparsifier
 
+
         assert (modality in self.modality_names), "Invalid modality type: " + modality + "\n" + \
                                 "Supported dataset types are: " + ''.join(self.modality_names)
+
         self.modality = modality
+
 
     def train_transform(self, rgb, depth):
         raise (RuntimeError("train_transform() is not implemented. "))
@@ -115,9 +119,9 @@ class MyDataloader(data.Dataset):
 
         if self.modality == 'rgb':
             input_np = rgb_np
-        elif self.modality == 'rgbd':
+        elif self.modality == 'rgb-kor':
             input_np = self.create_rgbd(rgb_np, depth_np)
-        elif self.modality == 'd':
+        elif self.modality == 'kor':
             input_np = self.create_sparse_depth(rgb_np, depth_np)
 
         input_tensor = to_tensor(input_np)

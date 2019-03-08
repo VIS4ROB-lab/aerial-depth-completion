@@ -47,17 +47,17 @@ def create_data_loaders(args):
         from dataloaders.nyu_dataloader import NYUDataset
         if not args.evaluate:
             train_dataset = NYUDataset(traindir, type='train',
-                modality=args.modality, sparsifier=sparsifier)
+                modality=args.modality, sparsifier=sparsifier,depth_divider=args.depth_divider, arch=args.arch)
         val_dataset = NYUDataset(valdir, type='val',
-            modality=args.modality, sparsifier=sparsifier)
+            modality=args.modality, sparsifier=sparsifier,depth_divider=args.depth_divider, arch=args.arch)
 
     elif args.data == 'kitti':
         from dataloaders.kitti_dataloader import KITTIDataset
         if not args.evaluate:
             train_dataset = KITTIDataset(traindir, type='train',
-                modality=args.modality, sparsifier=sparsifier)
+                modality=args.modality, sparsifier=sparsifier,depth_divider=args.depth_divider, arch=args.arch)
         val_dataset = KITTIDataset(valdir, type='val',
-            modality=args.modality, sparsifier=sparsifier)
+            modality=args.modality, sparsifier=sparsifier,depth_divider=args.depth_divider, arch=args.arch)
 
     elif args.data == 'visim':
         traindir = args.data_path
