@@ -129,7 +129,8 @@ def main():
     else:
 
 
-        if os.path.isfile( args.pretrained):
+        if not isinstance(args.pretrained, bool):
+            print('loading pretraining {}'.format(args.pretrained))
             checkpoint_premodel = torch.load(args.pretrained)
             args.pretrained =  checkpoint_premodel['model']
 
