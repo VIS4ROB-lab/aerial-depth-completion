@@ -1,5 +1,7 @@
 results
 data
+pretrain
+lsf.*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
