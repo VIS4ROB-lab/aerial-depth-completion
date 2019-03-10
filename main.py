@@ -10,7 +10,7 @@ from torchsummary import summary
 cudnn.benchmark = True
 
 from models import ResNet
-from model_ext import DepthCompletionNet,DepthWeightCompletionNet
+from model_ext import DepthCompletionNet,DepthWeightCompletionNet,ValidDepthCompletionNet
 from metrics import AverageMeter, Result
 from dataloaders.dense_to_sparse import UniformSampling, SimulatedStereo
 import criteria
@@ -157,6 +157,17 @@ def main():
             model = DepthCompletionNet(layers=50,
                                        modality_format=g_modality.format,
                                        pretrained=args.pretrained)
+        elif args.arch == 'vdepthcompnet18':
+            model = ValidDepthCompletionNet(layers=18, modality_format=g_modality.format,
+                                       pretrained=args.pretrained)
+        elif args.arch == 'vdepthcompnet34':
+            model = ValidDepthCompletionNet(layers=34,
+                                       modality_format=g_modality.format,
+                                       pretrained=args.pretrained)
+        elif args.arch == 'vdepthcompnet50':
+            model = ValidDepthCompletionNet(layers=50,
+                                       modality_format=g_modality.format,
+                                       pretrained=args.pretrained)
         elif args.arch == 'weightcompnet18':
             model = DepthWeightCompletionNet(layers=18,
                                        modality_format=g_modality.format,
@@ -188,6 +199,9 @@ def main():
         criterion = criteria.MaskedL1Loss().cuda()
     elif args.criterion == 'l2gn':
         criterion = criteria.MaskedL2GradNormalLoss().cuda()
+    elif args.criterion == 'l2nv':
+        criterion = criteria.MaskedL2NormalValidLoss().cuda()
+
 
 
     # create results folder, if not already exists
@@ -261,8 +275,12 @@ def train(train_loader, model, criterion, optimizer, epoch):
         # compute pred
         end = time.time()
         target_depth = target[:, 0:1, :, :]
-        pred = model(input)
-        loss = criterion(pred, target_depth,epoch)
+        if 'vdepthcompnet' in args.arch :
+            pred,valids = model(input)
+            loss = criterion(pred,valids, target_depth, epoch)
+        else:
+            pred = model(input)
+            loss = criterion(pred, target_depth,epoch)
 
         if loss is None:
             print('ignoring image, no valid pixel')
@@ -313,18 +331,23 @@ def validate(val_loader, model, epoch, write_to_file=True):
         #torch.cuda.synchronize()
         data_time = 0 #time.time() - end
 
+        valids = None
+
         # compute output
         end = time.time()
         with torch.no_grad():
-            pred = model(input)
-        #torch.cuda.synchronize()
-        gpu_time = 0 #time.time() - end
+            if 'vdepthcompnet' in args.arch:
+                pred, valids = model(input)
+            else:
+                pred = model(input)
+            #torch.cuda.synchronize()
+            gpu_time = 0 #time.time() - end
 
-        target_depth = target[:, 0:1, :, :]
-        #target_normal = target[:, 1:4, :, :]
+            target_depth = target[:, 0:1, :, :]
+            #target_normal = target[:, 1:4, :, :]
 
-        normal_eval(pred, target_depth)
-        pred_normal, target_normal = normal_eval.get_extra_visualization()
+            normal_eval(pred, target_depth)
+            pred_normal, target_normal = normal_eval.get_extra_visualization()
 
         # measure accuracy and record loss
         result = Result()
@@ -362,9 +385,9 @@ def validate(val_loader, model, epoch, write_to_file=True):
         pred_img = pred * args.depth_divider
 
         if i == 0:
-            img_merge = utils.merge_into_row_with_gt(rgb, depth, target_img, pred_img,target_normal,pred_normal)
+            img_merge = utils.merge_into_row_with_gt(rgb, depth, target_img, pred_img,target_normal,pred_normal,valids)
         elif (i < 8*skip) and (i % skip == 0):
-            row = utils.merge_into_row_with_gt(rgb, depth, target_img, pred_img,target_normal,pred_normal)
+            row = utils.merge_into_row_with_gt(rgb, depth, target_img, pred_img,target_normal,pred_normal,valids)
             img_merge = utils.add_row(img_merge, row)
         elif i == 8*skip:
             filename = output_directory + '/comparison_' + str(epoch) + '.png'

@@ -13,8 +13,8 @@ epsilon= np.finfo(float).eps
 cmap = plt.cm.viridis
 
 def parse_command():
-    model_names = ['resnet18', 'resnet34', 'resnet50','depthcompnet18','depthcompnet34','depthcompnet50','weightcompnet18','weightcompnet34','weightcompnet50']
-    loss_names = ['l1', 'l2','l2gn']
+    model_names = ['resnet18', 'resnet34', 'resnet50','depthcompnet18','depthcompnet34','depthcompnet50','vdepthcompnet18','vdepthcompnet34','vdepthcompnet50','weightcompnet18','weightcompnet34','weightcompnet50']
+    loss_names = ['l1', 'l2','l2gn','l2nv']
     data_names = ['nyudepthv2', 'kitti', 'visim']
     depth_weight_head_type_names = ['CBR','ResBlock1','JOIN']
     from dataloaders.dense_to_sparse import UniformSampling, SimulatedStereo
@@ -157,7 +157,7 @@ def merge_into_row(input, depth_target, depth_pred):
     return img_merge
 
 
-def merge_into_row_with_gt(input, depth_input, depth_target, depth_pred,normal_target=None,normal_pred=None):
+def merge_into_row_with_gt(input, depth_input, depth_target, depth_pred,normal_target=None,normal_pred=None,valid_mask=None):
     rgb = 255 * np.transpose(np.squeeze(input.cpu().numpy()), (1,2,0)) # H, W, C
     depth_input_cpu = np.squeeze(depth_input.cpu().numpy())
     depth_target_cpu = np.squeeze(depth_target.cpu().numpy())
@@ -172,6 +172,11 @@ def merge_into_row_with_gt(input, depth_input, depth_target, depth_pred,normal_t
     else:
         normal_pred_cpu = np.zeros_like(rgb)
 
+    if valid_mask is not None:
+        valid_mask_cpu = np.squeeze(valid_mask.cpu().numpy())
+    else:
+        valid_mask_cpu = np.zeros_like(depth_input_cpu)
+
 
     mask = np.logical_and(depth_input_cpu > 10e-5 ,  depth_target_cpu > 10e-5)
 
@@ -181,7 +186,16 @@ def merge_into_row_with_gt(input, depth_input, depth_target, depth_pred,normal_t
     depth_target_col = colored_depthmap(depth_target_cpu, d_min, d_max)
     depth_pred_col = colored_depthmap(depth_pred_cpu, d_min, d_max)
     hist = write_minmax(rgb.shape,d_min,d_max)
-    img_merge = np.hstack([rgb, depth_input_col, normal_target_cpu,normal_pred_cpu, depth_target_col, depth_pred_col,hist])
+
+    abs_diff = np.absolute((depth_pred_cpu - depth_target_cpu))
+    absrel = abs_diff/ depth_target_cpu
+    diff_col_abs = colored_depthmap(abs_diff, 0, 5)
+
+    diff_col_rel = colored_depthmap(absrel, 0, 1)
+    diff_col_rel01 = colored_depthmap(absrel, 0, 0.1)
+    diff_col_rel01_pred = colored_depthmap(valid_mask_cpu, 0, 1)
+
+    img_merge = np.hstack([rgb, depth_input_col, normal_target_cpu,normal_pred_cpu, depth_target_col, depth_pred_col,hist,diff_col_abs,diff_col_rel,diff_col_rel01,diff_col_rel01_pred])
 
     return img_merge
 
