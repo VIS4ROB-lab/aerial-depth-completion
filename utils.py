@@ -142,6 +142,19 @@ def colored_depthmap(depth, d_min=None, d_max=None):
     depth_relative = (depth - d_min) / (d_max - d_min)
     return 255 * cmap(depth_relative)[:,:,:3] # H, W, C
 
+confidence_color_map = plt.cm.seismic
+def confidence_depthmap(depth, d_min=None, d_max=None):
+    if d_min is None:
+        d_min = np.min(depth)
+    if d_max is None:
+        d_max = np.max(depth)
+    depth_relative = (depth - d_min) / (d_max - d_min)
+    return 255 * confidence_color_map(depth_relative)[:,:,:3] # H, W, C
+
+confidence_thres_color_map = plt.cm.binary
+def confidence_thres_depthmap(depth):
+    return 255 * confidence_thres_color_map(depth)[:,:,:3] # H, W, C
+
 
 def merge_into_row(input, depth_target, depth_pred):
     rgb = 255 * np.transpose(np.squeeze(input.cpu().numpy()), (1,2,0)) # H, W, C
@@ -193,9 +206,14 @@ def merge_into_row_with_gt(input, depth_input, depth_target, depth_pred,normal_t
 
     diff_col_rel = colored_depthmap(absrel, 0, 1)
     diff_col_rel01 = colored_depthmap(absrel, 0, 0.1)
-    diff_col_rel01_pred = colored_depthmap(valid_mask_cpu, 0, 1)
+    diff_col_rel01_pred = confidence_depthmap(valid_mask_cpu, 0, 1)
+    diff_col_rel01_pred = confidence_depthmap(valid_mask_cpu, 0, 1)
+    threshold_indices = valid_mask_cpu < 0.5
+    valid_thres = np.zeros_like(valid_mask_cpu)
+    valid_thres[threshold_indices] = 1
+    diff_col_rel01_pred_thres =confidence_thres_depthmap(valid_thres)
 
-    img_merge = np.hstack([rgb, depth_input_col, normal_target_cpu,normal_pred_cpu, depth_target_col, depth_pred_col,hist,diff_col_abs,diff_col_rel,diff_col_rel01,diff_col_rel01_pred])
+    img_merge = np.hstack([rgb, depth_input_col, normal_target_cpu,normal_pred_cpu, depth_target_col, depth_pred_col,hist,diff_col_abs,diff_col_rel,diff_col_rel01,diff_col_rel01_pred_thres,diff_col_rel01_pred])
 
     return img_merge
 
@@ -220,7 +238,7 @@ def add_row(img_merge, row):
 
 def save_image(img_merge, filename):
     img_merge = Image.fromarray(img_merge.astype('uint8'))
-    img_merge.save(filename)
+    img_merge.save(filename)#,optimize=False,compress_level=0
 
 def depth_to_normal_map(depth,use_sobel=True,dtype='uint8'):
 

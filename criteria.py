@@ -73,6 +73,7 @@ class MaskedL2GradNormalLoss(nn.Module):
         super(MaskedL2GradNormalLoss, self).__init__()
         self.get_gradient = Sobel()
         self.cos = nn.CosineSimilarity(dim=1, eps=0)
+        self.mse_loss = torch.nn.MSELoss().cuda()
         for param in self.parameters():
             param.requires_grad = False
 
@@ -95,7 +96,7 @@ class MaskedL2GradNormalLoss(nn.Module):
         depth_grad = self.get_gradient(target_depth)
         output_grad = self.get_gradient(pred)
 
-        loss_depth = torch.log(torch.abs(diff) + 0.5).mean()
+        loss_depth = self.mse_loss(pred,target_depth) #torch.log(torch.abs(diff) + 0.5).mean()
 
         depth_grad_dx = depth_grad[:, 0, :, :].contiguous().view_as(target_depth)
         depth_grad_dy = depth_grad[:, 1, :, :].contiguous().view_as(target_depth)
@@ -107,8 +108,6 @@ class MaskedL2GradNormalLoss(nn.Module):
         self.depth_normal = torch.cat((-depth_grad_dx/8, -depth_grad_dy/8, ones), 1)
         self.output_normal = torch.cat((-output_grad_dx/8, -output_grad_dy/8, ones), 1)
 
-
-
         self.depth_normal = F.normalize(self.depth_normal, p=2, dim=1)
         self.output_normal = F.normalize(self.output_normal, p=2, dim=1)
 
@@ -116,7 +115,7 @@ class MaskedL2GradNormalLoss(nn.Module):
         loss_dy = torch.log(torch.abs((output_grad_dy - depth_grad_dy)[valid_mask]) + 0.5).mean()
         loss_normal = 100* torch.abs(1 - self.cos(self.output_normal, self.depth_normal)[valid_mask[:,0,:,:]]).mean()
 
-        self.loss = [loss_depth.cpu().detach().numpy() , loss_normal.cpu().detach().numpy() , (loss_dx + loss_dy).cpu().detach().numpy()]
+        self.loss = [loss_depth.cpu().detach().numpy() , loss_normal.cpu().detach().numpy() , np.array(0)]#(loss_dx + loss_dy).cpu().detach().numpy()
 
         final_loss = loss_depth + loss_normal
 
@@ -129,11 +128,12 @@ class MaskedL2NormalValidLoss(nn.Module):
         self.get_gradient = Sobel()
         self.cos = nn.CosineSimilarity(dim=1, eps=0)
         self.valid_loss = torch.nn.BCEWithLogitsLoss().cuda()
+        self.l1smooth_loss = torch.nn.SmoothL1Loss().cuda()
         for param in self.parameters():
             param.requires_grad = False
 
         self.norma_loss_weight = 100
-        self.valid_loss_weight = 0.5
+        self.valid_loss_weight = 0.01
         self.min_valid_target = 10
         self.absrel_threshold = 0.1
 
@@ -165,7 +165,7 @@ class MaskedL2NormalValidLoss(nn.Module):
         depth_grad = self.get_gradient(target_depth)
         output_grad = self.get_gradient(pred)
 
-        loss_depth = torch.log(abs_diff + 0.5).mean()
+        loss_depth = self.l1smooth_loss(pred_depth_masked,target_depth_masked) #torch.log(abs_diff + 0.5).mean()
 
         depth_grad_dx = depth_grad[:, 0, :, :].contiguous().view_as(target_depth)
         depth_grad_dy = depth_grad[:, 1, :, :].contiguous().view_as(target_depth)
