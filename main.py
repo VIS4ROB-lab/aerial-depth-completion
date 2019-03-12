@@ -132,7 +132,9 @@ def main():
         if not isinstance(args.pretrained, bool):
             print('loading pretraining {}'.format(args.pretrained))
             checkpoint_premodel = torch.load(args.pretrained)
-            args.pretrained =  checkpoint_premodel['model']
+            args.pretrained = checkpoint_premodel['model']
+            if isinstance(args.pretrained, torch.nn.DataParallel):
+                args.pretrained = args.pretrained.module
 
         train_loader, val_loader = create_data_loaders(args)
         print("=> creating Model ({}-{}-{}) ...".format(args.arch, args.decoder, args.depth_weight_head_type))
