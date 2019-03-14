@@ -388,6 +388,7 @@ class ValidDepthCompletionNet(nn.Module):
         return y
 
 
+
 class DepthWeightCompletionNet(nn.Module):
 
     def create_from_zoo(self, layers=18,pretrained=True,dw_head_type='CBR'):

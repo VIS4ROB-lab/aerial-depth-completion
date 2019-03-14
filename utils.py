@@ -13,7 +13,7 @@ epsilon= np.finfo(float).eps
 cmap = plt.cm.viridis
 
 def parse_command():
-    model_names = ['resnet18', 'resnet34', 'resnet50','depthcompnet18','depthcompnet34','depthcompnet50','vdepthcompnet18','vdepthcompnet34','vdepthcompnet50','weightcompnet18','weightcompnet34','weightcompnet50']
+    model_names = ['resnet18', 'resnet34', 'resnet50','depthcompnet18','depthcompnet34','depthcompnet50','sdepthcompnet18','vdepthcompnet18','vdepthcompnet34','vdepthcompnet50','weightcompnet18','weightcompnet34','weightcompnet50']
     loss_names = ['l1', 'l2','l2gn','l2nv']
     data_names = ['nyudepthv2', 'kitti', 'visim']
     depth_weight_head_type_names = ['CBR','ResBlock1','JOIN']

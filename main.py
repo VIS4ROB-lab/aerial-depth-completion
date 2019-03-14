@@ -11,6 +11,7 @@ cudnn.benchmark = True
 
 from models import ResNet
 from model_ext import DepthCompletionNet,DepthWeightCompletionNet,ValidDepthCompletionNet
+from model_dual import SingleDepthCompletionNet
 from metrics import AverageMeter, Result
 from dataloaders.dense_to_sparse import UniformSampling, SimulatedStereo
 import criteria
@@ -182,6 +183,9 @@ def main():
             model = DepthWeightCompletionNet(layers=50,
                                        modality_format=g_modality.format,
                                        pretrained=args.pretrained,dw_head_type=args.depth_weight_head_type)
+        elif args.arch == 'sdepthcompnet18':
+            model = SingleDepthCompletionNet(layers=18,modality_format=g_modality.format,
+                                       pretrained=args.pretrained)
 
 
 
@@ -269,18 +273,34 @@ def train(train_loader, model, criterion, optimizer, epoch):
 
     for i, (input, target) in enumerate(train_loader):
 
-        input, target = input.cuda(), target.cuda()
+
 
         #torch.cuda.synchronize()
         data_time = 0 #time.time() - end
 
         # compute pred
         end = time.time()
-        target_depth = target[:, 0:1, :, :]
+
         if 'vdepthcompnet' in args.arch :
+            input, target = input.cuda(), target.cuda()
+            target_depth = target[:, 0:1, :, :]
             pred,valids = model(input)
             loss = criterion(pred,valids, target_depth, epoch)
+        elif 'sdepthcompnet' in args.arch :
+            target_depth = target[:, 0:1, :, :]
+            valid_mask = ((target_depth > 0).detach())
+            mask = torch.zeros_like(target_depth)
+            confidence = torch.zeros_like(target_depth)
+            mask[valid_mask] = 1
+            confidence[valid_mask] = 0.7
+            input = torch.cat([input,confidence,mask],dim=1)#r,g,b,d,c,m
+            input, target = input.cuda(), target.cuda()
+            target_depth = target[:, 0:1, :, :]
+            pred = model(input)
+            loss = criterion(pred, target_depth, epoch)
         else:
+            input, target = input.cuda(), target.cuda()
+            target_depth = target[:, 0:1, :, :]
             pred = model(input)
             loss = criterion(pred, target_depth,epoch)
 
@@ -340,6 +360,16 @@ def validate(val_loader, model, epoch, write_to_file=True):
         with torch.no_grad():
             if 'vdepthcompnet' in args.arch:
                 pred, valids = model(input)
+            elif 'sdepthcompnet' in args.arch:
+                target_depth = target[:, 0:1, :, :]
+                valid_mask = (target_depth > 0)
+                mask = torch.zeros_like(target_depth)
+                confidence = torch.zeros_like(target_depth)
+                mask[valid_mask] = 1
+                confidence[valid_mask] = 0.7
+                input = torch.cat([input, confidence, mask], dim=1)  # r,g,b,d,c,m
+                input = input.cuda()
+                pred = model(input)
             else:
                 pred = model(input)
             #torch.cuda.synchronize()
@@ -358,7 +388,7 @@ def validate(val_loader, model, epoch, write_to_file=True):
         end = time.time()
 
         # save 8 images for visualization
-        skip = 10
+        skip = 1350
         # if args.modality == 'd':
         #     img_merge = None
         # else:
@@ -388,10 +418,12 @@ def validate(val_loader, model, epoch, write_to_file=True):
 
         if i == 0:
             img_merge = utils.merge_into_row_with_gt(rgb, depth, target_img, pred_img,target_normal,pred_normal,valids)
+            filename = output_directory + '/comparison_' + str(epoch) + '.png'
+            utils.save_image(img_merge, filename)
         elif (i < 8*skip) and (i % skip == 0):
             row = utils.merge_into_row_with_gt(rgb, depth, target_img, pred_img,target_normal,pred_normal,valids)
             img_merge = utils.add_row(img_merge, row)
-        elif i == 8*skip:
+        #elif i == 8*skip:
             filename = output_directory + '/comparison_' + str(epoch) + '.png'
             utils.save_image(img_merge, filename)
 

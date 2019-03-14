@@ -250,7 +250,10 @@ class MyDataloaderExt(data.Dataset):
             result['fd'] = self.create_sparse_depth(rgb, depth)
 
         #using real keypoints from slam
-        data_2d = np.array(h5f['landmark_2d_data'])
+        if 'landmark_2d_data' in h5f:
+            data_2d = np.array(h5f['landmark_2d_data'])
+        else:
+            data_2d = None
 
 
 

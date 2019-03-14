@@ -2,7 +2,7 @@ import numpy as np
 import dataloaders.transforms as transforms
 from dataloaders.dataloader_ext import MyDataloaderExt,Modality
 
-iheight, iwidth = 480, 752 # raw image size
+#iheight, iwidth = 480, 752 # raw image size
 
 class VISIMDataset(MyDataloaderExt):
     def __init__(self, root, type, sparsifier=None, modality='rgb', arch='resnet18',depth_divider=1.0):
@@ -21,18 +21,23 @@ class VISIMDataset(MyDataloaderExt):
 
     def train_transform(self, attrib_list):
 
-        s = np.random.uniform(1.0, 1.2) # random scaling
+        iheight = attrib_list['gt_depth'].shape[0]
+        iwidth = attrib_list['gt_depth'].shape[1]
 
-        angle = np.random.uniform(-5.0, 5.0)  # random rotation degrees
-        do_flip = np.random.uniform(0.0, 1.0) < 0.5  # random horizontal flip
+        s = np.random.uniform(1.0, 1.5) # random scaling
+
+        angle = np.random.uniform(-15.0, 15.0)  # random rotation degrees
+        hdo_flip = np.random.uniform(0.0, 1.0) < 0.5  # random horizontal flip
+        vdo_flip = np.random.uniform(0.0, 1.0) < 0.5  # random vertical flip
 
         # perform 1st step of data augmentation
         transform = transforms.Compose([
-            transforms.Resize(250.0 / iheight),  # this is for computational efficiency, since rotation can be slow
+            transforms.Resize(270.0 / iheight),  # this is for computational efficiency, since rotation can be slow
             transforms.Rotate(angle),
             transforms.Resize(s),
             transforms.CenterCrop(self.output_size),
-            transforms.HorizontalFlip(do_flip)
+            transforms.HorizontalFlip(hdo_flip),
+            transforms.VerticalFlip(vdo_flip)
         ])
 
         attrib_np = dict()
@@ -55,6 +60,9 @@ class VISIMDataset(MyDataloaderExt):
         return attrib_np
 
     def val_transform(self,  attrib_list):
+
+        iheight = attrib_list['gt_depth'].shape[0]
+        iwidth = attrib_list['gt_depth'].shape[1]
 
         transform = transforms.Compose([
             transforms.Resize(240.0 / iheight),

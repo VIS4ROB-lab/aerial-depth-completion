@@ -447,6 +447,33 @@ class HorizontalFlip(object):
         else:
             return img
 
+class VerticalFlip(object):
+    """Horizontally flip the given ``numpy.ndarray``.
+
+    Args:
+        do_flip (boolean): whether or not do horizontal flip.
+
+    """
+
+    def __init__(self, do_flip):
+        self.do_flip = do_flip
+
+    def __call__(self, img):
+        """
+        Args:
+            img (numpy.ndarray (C x H x W)): Image to be flipped.
+
+        Returns:
+            img (numpy.ndarray (C x H x W)): flipped image.
+        """
+        if not(_is_numpy_image(img)):
+            raise TypeError('img should be ndarray. Got {}'.format(type(img)))
+
+        if self.do_flip:
+            return np.flipud(img)
+        else:
+            return img
+
 
 class ColorJitter(object):
     """Randomly change the brightness, contrast and saturation of an image.
