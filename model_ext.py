@@ -123,7 +123,7 @@ class DepthCompletionNet(nn.Module):
 
         if 'd' in self.modality:
             channels = 64 // len(self.modality)
-            self.conv1_d = conv_bn_relu(1, channels, kernel_size=3, stride=1, padding=1)
+            self.conv1_d = conv_bn_relu(2, channels, kernel_size=3, stride=1, padding=1)
         if 'rgb' in self.modality:
             channels = 64 * 3 // len(self.modality)
             self.conv1_img = conv_bn_relu(3, channels, kernel_size=3, stride=1, padding=1)
@@ -195,16 +195,24 @@ class DepthCompletionNet(nn.Module):
 
     def forward(self, x):
         # print(x.shape)
-        d = x[:,3, :, :].unsqueeze(1)
-        rgb = x[:,:3, :, :]
+
+        channel_offset = 0;
+
+        if 'rgb' in self.modality:
+            rgb = x[:, :3, :, :]
+            channel_offset = channel_offset +3
+            conv1_img = self.conv1_img(rgb)
+        elif 'g' in self.modality:
+            channel_offset = channel_offset + 1
+            conv1_img = self.conv1_img(x['g'])
 
         # first layer
         if 'd' in self.modality:
-            conv1_d = self.conv1_d(d)
-        if 'rgb' in self.modality:
-            conv1_img = self.conv1_img(rgb)
-        elif 'g' in self.modality:
-            conv1_img = self.conv1_img(x['g'])
+            d = x[:, channel_offset, :, :].unsqueeze(1)
+            m = (x[:, channel_offset, :, :].unsqueeze(1) > 0).float()
+            d_input = torch.cat([d,m],dim=1)
+            conv1_d = self.conv1_d(d_input)
+
 
         if self.modality=='rgbd' or self.modality=='gd':
             conv1 = torch.cat((conv1_d, conv1_img),1)
@@ -237,6 +245,7 @@ class DepthCompletionNet(nn.Module):
         y = torch.cat((convt1,conv1),1)
 
         y = self.convtf(y)
+
 
         if self.training:
             return y

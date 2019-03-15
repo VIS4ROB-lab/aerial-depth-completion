@@ -259,3 +259,36 @@ class MaskedL1Loss(nn.Module):
         self.loss = [final_loss.cpu().detach().numpy(),0,0] # diff.mean() #
         #print(self.loss)
         return final_loss
+
+
+class MaskedL1LossSmoothess(nn.Module):
+    def __init__(self):
+        super(MaskedL1LossSmoothess, self).__init__()
+
+    def get_extra_visualization(self):
+        return None,None
+
+    def forward(self, pred, target,epoch=None):#
+        def second_derivative(x):
+            assert x.dim() == 4, "expected 4-dimensional data, but instead got {}".format(x.dim())
+            horizontal = 2 * x[:,:,1:-1,1:-1] - x[:,:,1:-1,:-2] - x[:,:,1:-1,2:]
+            vertical = 2 * x[:,:,1:-1,1:-1] - x[:,:,:-2,1:-1] - x[:,:,2:,1:-1]
+            der_2nd = horizontal.abs() + vertical.abs()
+            return der_2nd.mean()
+
+        assert pred.dim() == target.dim(), "inconsistent dimensions"
+        valid_mask = (target>0).detach()
+        num_valids = valid_mask.sum()
+        if num_valids < 10:
+            return None
+
+        diff = target - pred
+        diff = diff[valid_mask]
+        loss_smooth = second_derivative(pred)
+
+        final_loss = diff.abs().mean() + 0.1 * loss_smooth
+        self.loss = [final_loss.cpu().detach().numpy(),loss_smooth.cpu().detach().numpy(),0] # diff.mean() #
+
+        final_loss = final_loss +  loss_smooth
+
+        return final_loss

@@ -220,21 +220,29 @@ class MyDataloaderExt(data.Dataset):
         h5f = h5py.File(path, "r")
 
         #target depth
-        dense_data = h5f['dense_image_data']
-        depth = np.array(dense_data[0, :, :])
-        mask_array = depth > 10000 # in this software inf distance is zero.
-        depth[mask_array] = 0
-        result['gt_depth'] = depth
-        if 'normal_data' in h5f:
-            normal_rescaled = ((np.array(h5f['normal_data'],dtype='float32')/127.5) - 1.0)
-            result['normal_x'] = normal_rescaled[0,:,:]
-            result['normal_y'] = normal_rescaled[1, :, :]
-            result['normal_z'] = normal_rescaled[2, :, :]
+        if 'dense_image_data' in h5f:
+            dense_data = h5f['dense_image_data']
+            depth = np.array(dense_data[0, :, :])
+            mask_array = depth > 10000 # in this software inf distance is zero.
+            depth[mask_array] = 0
+            result['gt_depth'] = depth
+            if 'normal_data' in h5f:
+                normal_rescaled = ((np.array(h5f['normal_data'],dtype='float32')/127.5) - 1.0)
+                result['normal_x'] = normal_rescaled[0,:,:]
+                result['normal_y'] = normal_rescaled[1, :, :]
+                result['normal_z'] = normal_rescaled[2, :, :]
+        elif 'depth' in h5f:
+            result['gt_depth'] = depth = np.array(h5f['depth'])
 
 
         # color data
+        if 'rgb_image_data' in h5f:
+            rgb = np.array(h5f['rgb_image_data'])
+        elif 'rgb' in h5f:
+            rgb = np.array(h5f['rgb'])
+        else:
+            rgb = None
 
-        rgb = np.array(h5f['rgb_image_data'])
 
         if 'grey' in type:
             grey_img = rgb2grayscale(rgb)

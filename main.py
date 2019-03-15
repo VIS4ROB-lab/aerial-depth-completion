@@ -207,6 +207,8 @@ def main():
         criterion = criteria.MaskedL2GradNormalLoss().cuda()
     elif args.criterion == 'l2nv':
         criterion = criteria.MaskedL2NormalValidLoss().cuda()
+    elif args.criterion == 'l1smooth':
+        criterion = criteria.MaskedL1LossSmoothess().cuda()
 
 
 
@@ -343,6 +345,84 @@ def train(train_loader, model, criterion, optimizer, epoch):
             'gpu_time': avg.gpu_time, 'data_time': avg.data_time,'loss0': avg.loss0,'loss1': avg.loss1,'loss2': avg.loss2})
 
 
+def train_fusion(train_loader, model, criterion, optimizer, epoch):
+    average_meter = AverageMeter()
+
+    model.train() # switch to train mode
+    end = time.time()
+
+    for i, (input, target) in enumerate(train_loader):
+
+
+
+        #torch.cuda.synchronize()
+        data_time = 0 #time.time() - end
+
+        # compute pred
+        end = time.time()
+
+        if 'vdepthcompnet' in args.arch :
+            input, target = input.cuda(), target.cuda()
+            target_depth = target[:, 0:1, :, :]
+            pred,valids = model(input)
+            loss = criterion(pred,valids, target_depth, epoch)
+        elif 'sdepthcompnet' in args.arch :
+            target_depth = target[:, 0:1, :, :]
+            valid_mask = ((target_depth > 0).detach())
+            mask = torch.zeros_like(target_depth)
+            confidence = torch.zeros_like(target_depth)
+            mask[valid_mask] = 1
+            confidence[valid_mask] = 0.7
+            input = torch.cat([input,confidence,mask],dim=1)#r,g,b,d,c,m
+            input, target = input.cuda(), target.cuda()
+            target_depth = target[:, 0:1, :, :]
+            pred = model(input)
+            loss = criterion(pred, target_depth, epoch)
+        else:
+            input, target = input.cuda(), target.cuda()
+            target_depth = target[:, 0:1, :, :]
+            pred = model(input)
+            loss = criterion(pred, target_depth,epoch)
+
+        if loss is None:
+            print('ignoring image, no valid pixel')
+            continue
+
+        optimizer.zero_grad()
+        loss.backward() # compute gradient and do SGD step
+        optimizer.step()
+
+        #torch.cuda.synchronize()
+        gpu_time = 0 #time.time() - end
+
+        # measure accuracy and record loss
+        result = Result()
+        result.evaluate(pred.data*args.depth_divider, target_depth.data*args.depth_divider)
+        average_meter.update(result, gpu_time, data_time,criterion.loss, input.size(0))
+        end = time.time()
+
+        if (i + 1) % args.print_freq == 0:
+            print('=> output: {}'.format(output_directory))
+            print('Train Epoch: {0} [{1}/{2}]\t'
+                  't_Data={data_time:.3f}({average.data_time:.3f}) '
+                  't_GPU={gpu_time:.3f}({average.gpu_time:.3f})\n\t'
+                  'RMSE={result.rmse:.2f}({average.rmse:.2f}) '
+                  'MAE={result.mae:.2f}({average.mae:.2f}) '
+                  'Delta1={result.delta1:.3f}({average.delta1:.3f}) '
+                  'REL={result.absrel:.3f}({average.absrel:.3f}) '
+                  'Lg10={result.lg10:.3f}({average.lg10:.3f}) '
+                  'Loss={losses[0]}/{losses[1]}/{losses[2]} '.format(
+                  epoch, i+1, len(train_loader), data_time=data_time,
+                  gpu_time=gpu_time, result=result, average=average_meter.average(),losses=criterion.loss))
+
+    avg = average_meter.average()
+    with open(train_csv, 'a') as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer.writerow({'mse': avg.mse, 'rmse': avg.rmse, 'absrel': avg.absrel, 'lg10': avg.lg10,
+            'mae': avg.mae, 'delta1': avg.delta1, 'delta2': avg.delta2, 'delta3': avg.delta3,
+            'gpu_time': avg.gpu_time, 'data_time': avg.data_time,'loss0': avg.loss0,'loss1': avg.loss1,'loss2': avg.loss2})
+
+
 def validate(val_loader, model, epoch, write_to_file=True):
     average_meter = AverageMeter()
     model.eval() # switch to evaluate mode
@@ -387,8 +467,9 @@ def validate(val_loader, model, epoch, write_to_file=True):
         average_meter.update(result, gpu_time, data_time,normal_eval.loss, input.size(0))
         end = time.time()
 
+        skip = 1000
         # save 8 images for visualization
-        skip = 1350
+        #skip = 1350
         # if args.modality == 'd':
         #     img_merge = None
         # else:
@@ -420,7 +501,7 @@ def validate(val_loader, model, epoch, write_to_file=True):
             img_merge = utils.merge_into_row_with_gt(rgb, depth, target_img, pred_img,target_normal,pred_normal,valids)
             filename = output_directory + '/comparison_' + str(epoch) + '.png'
             utils.save_image(img_merge, filename)
-        elif (i < 8*skip) and (i % skip == 0):
+        elif (i < 14*skip) and (i % skip == 0):
             row = utils.merge_into_row_with_gt(rgb, depth, target_img, pred_img,target_normal,pred_normal,valids)
             img_merge = utils.add_row(img_merge, row)
         #elif i == 8*skip:
