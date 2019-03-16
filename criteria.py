@@ -289,6 +289,46 @@ class MaskedL1LossSmoothess(nn.Module):
         final_loss = diff.abs().mean() + 0.1 * loss_smooth
         self.loss = [final_loss.cpu().detach().numpy(),loss_smooth.cpu().detach().numpy(),0] # diff.mean() #
 
-        final_loss = final_loss +  loss_smooth
+
+
+        return final_loss
+
+
+
+class MaskedWL1LossSmoothess(nn.Module):
+    def __init__(self):
+        super(MaskedWL1LossSmoothess, self).__init__()
+
+    def get_extra_visualization(self):
+        return None,None
+
+    def forward(self, pred, target,sparse_input):#
+        def second_derivative(x):
+            assert x.dim() == 4, "expected 4-dimensional data, but instead got {}".format(x.dim())
+            horizontal = 2 * x[:,:,1:-1,1:-1] - x[:,:,1:-1,:-2] - x[:,:,1:-1,2:]
+            vertical = 2 * x[:,:,1:-1,1:-1] - x[:,:,:-2,1:-1] - x[:,:,2:,1:-1]
+            der_2nd = horizontal.abs() + vertical.abs()
+            return der_2nd.mean()
+
+        assert pred.dim() == target.dim() == sparse_input.dim(), "inconsistent dimensions"
+        valid_mask = (target>0).detach()
+        num_valids = valid_mask.sum()
+        if num_valids < 10:
+            return None
+
+        diff_raw = target - pred
+        diff_all = diff_raw[valid_mask]
+        loss_smooth =  0.5 *second_derivative(pred)
+
+        sparse_mask = (sparse_input > 0).detach()
+        sparse_valids = sparse_mask.sum()
+        sparse_diff = diff_raw[sparse_mask]
+
+        ratio_all_sparse = 0.5
+        sparse_l1 = sparse_diff.abs().mean()
+        depth_loss = ratio_all_sparse*diff_all.abs().mean() + (1-ratio_all_sparse)*sparse_l1
+        self.loss = [depth_loss.cpu().detach().numpy(),loss_smooth.cpu().detach().numpy(),sparse_l1.cpu().detach().numpy()] # diff.mean() #
+
+        final_loss = depth_loss + loss_smooth
 
         return final_loss

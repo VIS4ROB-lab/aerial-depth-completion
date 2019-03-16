@@ -209,6 +209,10 @@ def main():
         criterion = criteria.MaskedL2NormalValidLoss().cuda()
     elif args.criterion == 'l1smooth':
         criterion = criteria.MaskedL1LossSmoothess().cuda()
+    elif args.criterion == 'wl1smooth':
+        criterion = criteria.MaskedWL1LossSmoothess().cuda()
+
+
 
 
 
@@ -299,7 +303,10 @@ def train(train_loader, model, criterion, optimizer, epoch):
             input, target = input.cuda(), target.cuda()
             target_depth = target[:, 0:1, :, :]
             pred = model(input)
-            loss = criterion(pred, target_depth, epoch)
+            if args.criterion == 'wl1smooth':
+                loss = criterion(pred, target_depth, input[:, 3:4, :, :])#.unsqueeze(1)
+            else:
+                loss = criterion(pred, target_depth, epoch)
         else:
             input, target = input.cuda(), target.cuda()
             target_depth = target[:, 0:1, :, :]
@@ -377,7 +384,11 @@ def train_fusion(train_loader, model, criterion, optimizer, epoch):
             input, target = input.cuda(), target.cuda()
             target_depth = target[:, 0:1, :, :]
             pred = model(input)
-            loss = criterion(pred, target_depth, epoch)
+            if args.criterion == 'wl1smooth':
+                loss = criterion(pred, target_depth, target[:, 3:4, :, :])
+            else:
+                loss = criterion(pred, target_depth, epoch)
+
         else:
             input, target = input.cuda(), target.cuda()
             target_depth = target[:, 0:1, :, :]
