@@ -467,7 +467,7 @@ def validate(val_loader, model, epoch, write_to_file=True):
         average_meter.update(result, gpu_time, data_time,normal_eval.loss, input.size(0))
         end = time.time()
 
-        skip = 1000
+        skip = 10
         # save 8 images for visualization
         #skip = 1350
         # if args.modality == 'd':

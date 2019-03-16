@@ -42,10 +42,13 @@ class VISIMDataset(MyDataloaderExt):
 
         attrib_np = dict()
 
+        min_depth = max(attrib_list['fd'].min(), 0.1)
+        max_depth = attrib_list['fd'].max()
+
         for key, value in attrib_list.items():
             attrib_np[key] = transform(value)
             if key in Modality.need_divider: #['gt_depth','fd','kor','kde','kgt','dor','dde', 'd3dwde','d3dwor','dvor','dvde','dvgt']:
-                attrib_np[key] = attrib_np[key]  / self.depth_divider
+                attrib_np[key] = (attrib_np[key] - min_depth+0.01) / (max_depth - min_depth) #/ self.depth_divider
             elif key in  Modality.image_size_weight_names: #['d2dwor', 'd2dwde', 'd2dwgt']:
                 attrib_np[key] = attrib_np[key] / (iwidth * 1.5)  # 1.5 about sqrt(2)- square's diagonal
 
@@ -71,10 +74,13 @@ class VISIMDataset(MyDataloaderExt):
 
         attrib_np = dict()
 
+        min_depth = max(attrib_list['fd'].min(), 0.1)
+        max_depth = attrib_list['fd'].max()
+
         for key, value in attrib_list.items():
             attrib_np[key] = transform(value)
             if key in Modality.need_divider:  #['gt_depth','fd','kor','kde','kgt','dor','dde', 'd3dwde','d3dwor','dvor','dvde','dvgt']:
-                attrib_np[key] = attrib_np[key]  / self.depth_divider
+                attrib_np[key] =  (attrib_np[key] - min_depth+0.01) / (max_depth - min_depth)
             elif key in Modality.image_size_weight_names:
                 attrib_np[key] = attrib_np[key] / (iwidth*1.5)#1.5 about sqrt(2)- square's diagonal
             elif key == 'rgb':
