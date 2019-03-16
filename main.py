@@ -2,7 +2,7 @@ import os
 import time
 import csv
 import numpy as np
-
+import math
 import torch
 import torch.backends.cudnn as cudnn
 import torch.optim
@@ -439,6 +439,7 @@ def validate(val_loader, model, epoch, write_to_file=True):
     model.eval() # switch to evaluate mode
     normal_eval = criteria.MaskedL2GradNormalLoss().cuda().eval()
     end = time.time()
+    sample_step = math.floor(len(val_loader) / 40.0)
     for i, (input, target) in enumerate(val_loader):
         input, target = input.cuda(), target.cuda()
         #torch.cuda.synchronize()
@@ -478,7 +479,7 @@ def validate(val_loader, model, epoch, write_to_file=True):
         average_meter.update(result, gpu_time, data_time,normal_eval.loss, input.size(0))
         end = time.time()
 
-        skip = 10
+        skip = sample_step
         # save 8 images for visualization
         #skip = 1350
         # if args.modality == 'd':
