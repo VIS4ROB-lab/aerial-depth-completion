@@ -277,9 +277,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
     model.train() # switch to train mode
     end = time.time()
 
-    for i, (input, target) in enumerate(train_loader):
-
-
+    for i, (input, target,min_depth,max_depth) in enumerate(train_loader):
 
         #torch.cuda.synchronize()
         data_time = 0 #time.time() - end
@@ -439,8 +437,9 @@ def validate(val_loader, model, epoch, write_to_file=True):
     model.eval() # switch to evaluate mode
     normal_eval = criteria.MaskedL2GradNormalLoss().cuda().eval()
     end = time.time()
-    sample_step = math.floor(len(val_loader) / 40.0)
-    for i, (input, target) in enumerate(val_loader):
+    num_of_images = 40
+    sample_step = math.floor(len(val_loader) / float(num_of_images))
+    for i, (input, target,min_depth,max_depth) in enumerate(val_loader):
         input, target = input.cuda(), target.cuda()
         #torch.cuda.synchronize()
         data_time = 0 #time.time() - end
@@ -513,7 +512,7 @@ def validate(val_loader, model, epoch, write_to_file=True):
             img_merge = utils.merge_into_row_with_gt(rgb, depth, target_img, pred_img,target_normal,pred_normal,valids)
             filename = output_directory + '/comparison_' + str(epoch) + '.png'
             utils.save_image(img_merge, filename)
-        elif (i < 14*skip) and (i % skip == 0):
+        elif (i < num_of_images*skip) and (i % skip == 0):
             row = utils.merge_into_row_with_gt(rgb, depth, target_img, pred_img,target_normal,pred_normal,valids)
             img_merge = utils.add_row(img_merge, row)
         #elif i == 8*skip:

@@ -444,7 +444,7 @@ class MyDataloaderExt(data.Dataset):
  #       depth_tensor = totensor(depth_np)
 #        depth_tensor = depth_tensor.unsqueeze(0)
 
-        return input_tensor, target_depth_tensor
+        return input_tensor, target_depth_tensor,channels_transformed_np['min_depth'],channels_transformed_np['max_depth']
 
     def __len__(self):
         return len(self.imgs)

@@ -42,8 +42,11 @@ class VISIMDataset(MyDataloaderExt):
 
         attrib_np = dict()
 
-        min_depth = max(attrib_list['fd'].min(), 0.1)
-        max_depth = attrib_list['fd'].max()
+        minmax_image = transform(attrib_list['fd'])
+        min_depth = max(minmax_image.min(), 0.1)
+        max_depth = minmax_image.max()
+        attrib_np['min_depth'] = min_depth
+        attrib_np['max_depth'] = max_depth
 
         for key, value in attrib_list.items():
             attrib_np[key] = transform(value)
@@ -74,8 +77,11 @@ class VISIMDataset(MyDataloaderExt):
 
         attrib_np = dict()
 
-        min_depth = max(attrib_list['fd'].min(), 0.1)
-        max_depth = attrib_list['fd'].max()
+        minmax_image = transform(attrib_list['fd'])
+        min_depth = max(minmax_image.min(), 0.1)
+        max_depth = minmax_image.max()
+        attrib_np['min_depth'] = min_depth
+        attrib_np['max_depth'] = max_depth
 
         for key, value in attrib_list.items():
             attrib_np[key] = transform(value)
