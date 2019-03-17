@@ -443,8 +443,8 @@ def validate(val_loader, model, epoch, write_to_file=True):
         elif (i < num_of_images*skip) and (i % skip == 0):
             row = utils.merge_into_row_with_gt(rgb, depth, target_img, pred_img,target_normal,pred_normal,valids)
             img_merge = utils.add_row(img_merge, row)
-        
-            if (i % 4*skip == 0):
+
+            if (i % (4*skip) == 0):
                 filename = output_directory + '/comparison_' + str(epoch) + '.png'
                 utils.save_image(img_merge, filename)
 
