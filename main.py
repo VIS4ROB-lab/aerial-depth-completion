@@ -277,7 +277,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
     model.train() # switch to train mode
     end = time.time()
 
-    for i, (input, target,min_depth,max_depth) in enumerate(train_loader):
+    for i, (input, target) in enumerate(train_loader):
 
         #torch.cuda.synchronize()
         data_time = 0 #time.time() - end
@@ -439,7 +439,7 @@ def validate(val_loader, model, epoch, write_to_file=True):
     end = time.time()
     num_of_images = 40
     sample_step = math.floor(len(val_loader) / float(num_of_images))
-    for i, (input, target,min_depth,max_depth) in enumerate(val_loader):
+    for i, (input, target) in enumerate(val_loader):
         input, target = input.cuda(), target.cuda()
         #torch.cuda.synchronize()
         data_time = 0 #time.time() - end
