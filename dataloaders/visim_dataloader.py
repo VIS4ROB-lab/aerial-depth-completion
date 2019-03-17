@@ -43,8 +43,7 @@ class VISIMDataset(MyDataloaderExt):
         attrib_np = dict()
 
         minmax_image = transform(attrib_list['fd'])
-        min_depth = max(minmax_image.min(), 0.1)
-        max_depth = minmax_image.max()
+        max_depth = max(minmax_image.max(),1.0)
         scale = 10.0 / max_depth  # 10 is arbitrary. the network only converge in a especific range
         attrib_np['scale'] = 1.0/scale
 
@@ -78,7 +77,8 @@ class VISIMDataset(MyDataloaderExt):
         attrib_np = dict()
 
         minmax_image = transform(attrib_list['fd'])
-        max_depth = minmax_image.max()
+        max_depth = max(minmax_image.max(),1.0)
+
         scale = 10.0 / max_depth #10 is arbitrary. the network only converge in a especific range
         attrib_np['scale'] = 1.0/scale
 
