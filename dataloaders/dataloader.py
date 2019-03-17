@@ -130,7 +130,8 @@ class MyDataloader(data.Dataset):
         depth_tensor = to_tensor(depth_np)
         depth_tensor = depth_tensor.unsqueeze(0)
 
-        return input_tensor, depth_tensor , 0,0
+
+        return input_tensor, depth_tensor,1
 
     def __len__(self):
         return len(self.imgs)

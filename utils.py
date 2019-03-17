@@ -195,6 +195,12 @@ def merge_into_row_with_gt(input, depth_input, depth_target, depth_pred,normal_t
 
     d_min = min(np.min(depth_input_cpu[mask]), np.min(depth_target_cpu[mask]), np.min(depth_pred_cpu))
     d_max = max(np.max(depth_input_cpu), np.max(depth_target_cpu), np.max(depth_pred_cpu))
+
+    d_input_min = np.min(depth_input_cpu[mask])
+    d_input_max = np.max(depth_input_cpu[mask])
+    d_pred_min = np.min(depth_pred_cpu[mask])
+    d_pred_max = np.max(depth_pred_cpu[mask])
+
     depth_input_col = colored_depthmap(depth_input_cpu, d_min, d_max)
     depth_target_col = colored_depthmap(depth_target_cpu, d_min, d_max)
     depth_pred_col = colored_depthmap(depth_pred_cpu, d_min, d_max)
