@@ -318,7 +318,7 @@ class MaskedWL1LossSmoothess(nn.Module):
 
         diff_raw = target - pred
         diff_all = diff_raw[valid_mask]
-        loss_smooth =  0.5 *second_derivative(pred)
+        loss_smooth =  0.1 *second_derivative(pred)
 
         sparse_mask = (sparse_input > 0).detach()
         sparse_valids = sparse_mask.sum()
