@@ -45,7 +45,7 @@ def h5_loader(path):
 to_tensor = transforms.ToTensor()
 
 class MyDataloader(data.Dataset):
-    modality_names = ['rgb', 'rgb-kor', 'kor'] # , 'g', 'gd'
+    modality_names = ['rgb', 'rgb-fd', 'fd'] # , 'g', 'gd'
     color_jitter = transforms.ColorJitter(0.4, 0.4, 0.4)
 
     def __init__(self, root, type, sparsifier=None, modality='rgb', loader=h5_loader):
@@ -119,9 +119,9 @@ class MyDataloader(data.Dataset):
 
         if self.modality == 'rgb':
             input_np = rgb_np
-        elif self.modality == 'rgb-kor':
+        elif self.modality == 'rgb-fd':
             input_np = self.create_rgbd(rgb_np, depth_np)
-        elif self.modality == 'kor':
+        elif self.modality == 'fd':
             input_np = self.create_sparse_depth(rgb_np, depth_np)
 
         input_tensor = to_tensor(input_np)
@@ -130,7 +130,7 @@ class MyDataloader(data.Dataset):
         depth_tensor = to_tensor(depth_np)
         depth_tensor = depth_tensor.unsqueeze(0)
 
-        return input_tensor, depth_tensor
+        return input_tensor, depth_tensor , 0,0
 
     def __len__(self):
         return len(self.imgs)

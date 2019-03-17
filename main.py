@@ -11,7 +11,7 @@ cudnn.benchmark = True
 
 from models import ResNet
 from model_ext import DepthCompletionNet,DepthWeightCompletionNet,ValidDepthCompletionNet
-from model_dual import SingleDepthCompletionNet
+from model_dual import SingleDepthCompletionNet,FusionNet
 from metrics import AverageMeter, Result
 from dataloaders.dense_to_sparse import UniformSampling, SimulatedStereo
 import criteria
@@ -186,6 +186,11 @@ def main():
         elif args.arch == 'sdepthcompnet18':
             model = SingleDepthCompletionNet(layers=18,modality_format=g_modality.format,
                                        pretrained=args.pretrained)
+        elif args.arch == 'fsdepthcompnet18':
+            model_dc = SingleDepthCompletionNet(layers=18, modality_format=g_modality.format,
+                                             pretrained=args.pretrained)
+            # model_fusion = FusionNet(layers=18, modality_format=g_modality.format,
+            #                                     pretrained=args.pretrained)
 
 
 
@@ -300,11 +305,13 @@ def train(train_loader, model, criterion, optimizer, epoch):
             input = torch.cat([input,confidence,mask],dim=1)#r,g,b,d,c,m
             input, target = input.cuda(), target.cuda()
             target_depth = target[:, 0:1, :, :]
-            pred = model(input)
+
+            pred,pred_features = model(input)
             if args.criterion == 'wl1smooth':
                 loss = criterion(pred, target_depth, input[:, 3:4, :, :])#.unsqueeze(1)
             else:
                 loss = criterion(pred, target_depth, epoch)
+
         else:
             input, target = input.cuda(), target.cuda()
             target_depth = target[:, 0:1, :, :]
@@ -381,7 +388,7 @@ def train_fusion(train_loader, model, criterion, optimizer, epoch):
             input = torch.cat([input,confidence,mask],dim=1)#r,g,b,d,c,m
             input, target = input.cuda(), target.cuda()
             target_depth = target[:, 0:1, :, :]
-            pred = model(input)
+            pred,_ = model(input)
             if args.criterion == 'wl1smooth':
                 loss = criterion(pred, target_depth, target[:, 3:4, :, :])
             else:
@@ -460,7 +467,7 @@ def validate(val_loader, model, epoch, write_to_file=True):
                 confidence[valid_mask] = 0.7
                 input = torch.cat([input, confidence, mask], dim=1)  # r,g,b,d,c,m
                 input = input.cuda()
-                pred = model(input)
+                pred,_ = model(input)
             else:
                 pred = model(input)
             #torch.cuda.synchronize()

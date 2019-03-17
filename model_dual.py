@@ -189,8 +189,16 @@ class SingleDepthCompletionNet(nn.Module):
         y = self.convtf(y)
 
         if self.training:
-            return y
+            return y , convt1
         else:
-            return F.relu(y)
+            return F.relu(y), convt1
         return y
 
+
+class FusionNet(nn.Module):
+
+    def __init__(self):
+        super(FusionNet, self).__init__()
+
+    def forward(self, depth_pred,pred_features):
+        return depth_pred
