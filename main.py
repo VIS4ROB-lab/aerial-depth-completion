@@ -504,8 +504,6 @@ def validate(val_loader, model, epoch, write_to_file=True):
         else:
             rgb = torch.zeros(input[:, 0:1, :, :].size()).expand(-1,3,-1,-1)
 
-
-
         depth_nchannels,_ = g_modality.get_input_depth_channel()
         if(depth_nchannels == 1):
             depth = input[:,image_nchannels:(image_nchannels+1),:,:]*args.depth_divider

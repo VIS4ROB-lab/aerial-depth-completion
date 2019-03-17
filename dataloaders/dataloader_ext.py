@@ -448,3 +448,11 @@ class MyDataloaderExt(data.Dataset):
 
     def __len__(self):
         return len(self.imgs)
+
+class SeqMyDataloaderExt(MyDataloaderExt):
+
+    def __init__(self, root, type, sparsifier=None, modality='rgb',sequence_size=2,skip_step=10):
+        super(SeqMyDataloaderExt,self).__init__(root,type,sparsifier,modality)
+
+    def __getitem__(self, index):
+

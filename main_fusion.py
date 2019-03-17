@@ -43,19 +43,19 @@ def create_data_loaders(args):
     elif args.sparsifier == SimulatedStereo.name:
         sparsifier = SimulatedStereo(num_samples=args.num_samples, max_depth=max_depth)
 
-    elif args.data == 'visim':
+    if args.data == 'visim':
         traindir = args.data_path
         valdir = args.data_path
-        from dataloaders.visim_dataloader import VISIMDataset
+        from dataloaders.visim_dataloader import VISIMSeqDataset
         if not args.evaluate:
-            train_dataset = VISIMDataset(traindir, type='train',
+            train_dataset = VISIMSeqDataset(traindir, type='train',
                 modality=args.modality, sparsifier=sparsifier,depth_divider=args.depth_divider, arch=args.arch)
-        val_dataset = VISIMDataset(valdir, type='val',
+        val_dataset = VISIMSeqDataset(valdir, type='val',
             modality=args.modality, sparsifier=sparsifier,depth_divider=args.depth_divider, arch=args.arch)
 
     else:
         raise RuntimeError('Dataset not found.' +
-                           'The dataset must be either of nyudepthv2 or kitti.')
+                           'The dataset must be either of visim or ???.')
 
     # set batch size to be 1 for validation
     val_loader = torch.utils.data.DataLoader(val_dataset,
