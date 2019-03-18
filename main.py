@@ -318,7 +318,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
             pred = model(input)
             loss = criterion(pred, target_depth,epoch)
 
-        if loss is None:
+        if loss is None or torch.isnan(loss) or torch.isinf(loss):
             print('ignoring image, no valid pixel')
             continue
 
