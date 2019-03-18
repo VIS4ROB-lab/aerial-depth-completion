@@ -19,15 +19,16 @@ IMG_EXTENSIONS = ['.h5',]
 def is_image_file(filename):
     return any(filename.endswith(extension) for extension in IMG_EXTENSIONS)
 
-def load_files_list(path):
+def load_files_list(path,base_filter):
     images = []    
     with open(path, 'r') as csvfile:
         reader = csv.reader(csvfile, delimiter=',')
         folder = os.path.dirname(path)
         for row in reader:            
             path = os.path.join(folder, row[1])
-            item = (path,row[0])
-            images.append(item)
+            if base_filter is None or base_filter in path:
+                item = (path,row[0])
+                images.append(item)
     return images
 
 def rgb2grayscale(rgb):
@@ -130,15 +131,15 @@ class MyDataloaderExt(data.Dataset):
 
     color_jitter = transforms.ColorJitter(0.4, 0.4, 0.4)
 
-    def __init__(self, root, type, sparsifier=None, modality='rgb'):
+    def __init__(self, root, type, sparsifier=None, modality='rgb',base_filter=None):
         
         imgs = []
         if type == 'train':
             self.transform = self.train_transform
-            imgs = load_files_list(os.path.join(root,'train.txt'))
+            imgs = load_files_list(os.path.join(root,'train.txt'),base_filter)
         elif type == 'val':
             self.transform = self.val_transform
-            imgs = load_files_list(os.path.join(root,'val.txt'))
+            imgs = load_files_list(os.path.join(root,'val.txt'),base_filter)
         else:
             raise (RuntimeError("Invalid dataset type: " + type + "\n"
                                 "Supported dataset types are: train, val"))
@@ -452,7 +453,51 @@ class MyDataloaderExt(data.Dataset):
 class SeqMyDataloaderExt(MyDataloaderExt):
 
     def __init__(self, root, type, sparsifier=None, modality='rgb',sequence_size=2,skip_step=10):
-        super(SeqMyDataloaderExt,self).__init__(root,type,sparsifier,modality)
+        super(SeqMyDataloaderExt,self).__init__(root,type,sparsifier,modality,base_filter='ds-')
 
     def __getitem__(self, index):
-        super(SeqMyDataloaderExt,self).__getitem__(self, index)
+        input_np = None
+
+        channels_np = self.h5_loader_general(index, self.modality)
+
+        if self.transform is not None:
+            channels_transformed_np = self.transform(channels_np)
+        else:
+            raise (RuntimeError("transform not defined"))
+
+        # for key, value in channels_transformed_np.items():
+        #     if key == 'gt_depth':
+        #         continue
+
+        num_image_channel, image_channel = self.modality.get_input_image_channel()
+        if num_image_channel > 0:
+            input_np = self.append_tensor3d(input_np, channels_transformed_np[image_channel])
+
+        num_depth_channel, depth_channel = self.modality.get_input_depth_channel()
+        if num_depth_channel > 0:
+            input_np = self.append_tensor3d(input_np, channels_transformed_np[depth_channel])
+
+        num_weight_channel, weight_channel = self.modality.get_input_weight_channel()
+        if num_weight_channel > 0:
+            input_np = self.append_tensor3d(input_np, channels_transformed_np[weight_channel])
+
+        input_tensor = self.to_tensor(input_np)
+        target_data = None
+        target_data = channels_transformed_np['gt_depth']
+        # np.stack([channels_transformed_np['gt_depth'],channels_transformed_np['normal_x'],channels_transformed_np['normal_y'],channels_transformed_np['normal_z']])
+        # target_data = self.append_tensor3d(target_data,channels_transformed_np['gt_depth'])
+        # target_data = self.append_tensor3d(target_data, channels_transformed_np['normal_x'])
+        # target_data = self.append_tensor3d(target_data, channels_transformed_np['normal_y'])
+        # target_data = self.append_tensor3d(target_data, channels_transformed_np['normal_z'])
+
+        target_depth_tensor = self.to_tensor(target_data).unsqueeze(0)
+
+        # target_depth_tensor = depth_tensor.unsqueeze(0)
+        #        if input_tensor.dim() == 2: #force to have a third dimension on the single channel input
+        #            input_tensor = input_tensor.unsqueeze(0)
+        #        if input_tensor.dim() < 2:
+        #            raise (RuntimeError("transform not defined"))
+        #       depth_tensor = totensor(depth_np)
+        #        depth_tensor = depth_tensor.unsqueeze(0)
+
+        return input_tensor, target_depth_tensor, channels_transformed_np['scale']

@@ -11,7 +11,7 @@ cudnn.benchmark = True
 
 from models import ResNet
 from model_ext import DepthCompletionNet,DepthWeightCompletionNet,ValidDepthCompletionNet
-from model_dual import SingleDepthCompletionNet,FusionNet
+from model_dual import SingleDepthCompletionNet
 from metrics import AverageMeter, Result
 from dataloaders.dense_to_sparse import UniformSampling, SimulatedStereo
 import criteria

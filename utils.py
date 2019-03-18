@@ -15,7 +15,7 @@ cmap = plt.cm.viridis
 def parse_command():
     model_names = ['resnet18', 'resnet34', 'resnet50','depthcompnet18','depthcompnet34','depthcompnet50','sdepthcompnet18','vdepthcompnet18','vdepthcompnet34','vdepthcompnet50','weightcompnet18','weightcompnet34','weightcompnet50']
     loss_names = ['l1', 'l2','l2gn','l2nv','l1smooth','wl1smooth']
-    data_names = ['nyudepthv2', 'kitti', 'visim']
+    data_names = ['nyudepthv2', 'kitti', 'visim','visim_seq']
     depth_weight_head_type_names = ['CBR','ResBlock1','JOIN']
     from dataloaders.dense_to_sparse import UniformSampling, SimulatedStereo
     sparsifier_names = [x.name for x in [UniformSampling, SimulatedStereo]]
@@ -207,7 +207,8 @@ def merge_into_row_with_gt(input, depth_input, depth_target, depth_pred,normal_t
     hist = write_minmax(rgb.shape,d_min,d_max)
 
     abs_diff = np.absolute((depth_pred_cpu - depth_target_cpu))
-    absrel = abs_diff/ depth_target_cpu
+    absrel = np.zeros_like(abs_diff)
+    absrel[mask] = abs_diff[mask]/ depth_target_cpu[mask]
     diff_col_abs = colored_depthmap(abs_diff, 0, 5)
 
     diff_col_rel = colored_depthmap(absrel, 0, 1)
@@ -219,7 +220,7 @@ def merge_into_row_with_gt(input, depth_input, depth_target, depth_pred,normal_t
     valid_thres[threshold_indices] = 1
     diff_col_rel01_pred_thres =confidence_thres_depthmap(valid_thres)
 
-    img_merge = np.hstack([rgb, depth_input_col, normal_target_cpu,normal_pred_cpu, depth_target_col, depth_pred_col,hist,diff_col_abs,diff_col_rel,diff_col_rel01,diff_col_rel01_pred_thres,diff_col_rel01_pred])
+    img_merge = np.hstack([rgb, depth_input_col, normal_target_cpu,normal_pred_cpu, depth_target_col, depth_pred_col,hist,diff_col_abs,diff_col_rel,diff_col_rel01,diff_col_rel01_pred_thres])
 
     return img_merge
 

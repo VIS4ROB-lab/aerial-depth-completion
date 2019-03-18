@@ -11,7 +11,7 @@ cudnn.benchmark = True
 
 from models import ResNet
 from model_ext import DepthCompletionNet,DepthWeightCompletionNet,ValidDepthCompletionNet
-from model_dual import SingleDepthCompletionNet,FusionNet
+from model_dual import SingleDepthCompletionNet,EarlyFusionNet,LateFusionNet,build_no_grad_mask
 from metrics import AverageMeter, Result
 from dataloaders.dense_to_sparse import UniformSampling, SimulatedStereo
 import criteria
@@ -31,7 +31,8 @@ best_result.set_to_worst()
 def create_data_loaders(args):
     # Data loading code
     print("=> creating data loaders ...")
-
+    traindir = os.path.join(args.data_path, args.data, 'train')
+    valdir = os.path.join(args.data_path, args.data, 'val')
     train_loader = None
     val_loader = None
 
@@ -43,7 +44,33 @@ def create_data_loaders(args):
     elif args.sparsifier == SimulatedStereo.name:
         sparsifier = SimulatedStereo(num_samples=args.num_samples, max_depth=max_depth)
 
-    if args.data == 'visim':
+    if args.data == 'nyudepthv2':
+        from dataloaders.nyu_dataloader import NYUDataset
+        if not args.evaluate:
+            train_dataset = NYUDataset(traindir, type='train',
+                modality=args.modality, sparsifier=sparsifier,depth_divider=args.depth_divider, arch=args.arch)
+        val_dataset = NYUDataset(valdir, type='val',
+            modality=args.modality, sparsifier=sparsifier,depth_divider=args.depth_divider, arch=args.arch)
+
+    elif args.data == 'kitti':
+        from dataloaders.kitti_dataloader import KITTIDataset
+        if not args.evaluate:
+            train_dataset = KITTIDataset(traindir, type='train',
+                modality=args.modality, sparsifier=sparsifier,depth_divider=args.depth_divider, arch=args.arch)
+        val_dataset = KITTIDataset(valdir, type='val',
+            modality=args.modality, sparsifier=sparsifier,depth_divider=args.depth_divider, arch=args.arch)
+
+    elif args.data == 'visim':
+        traindir = args.data_path
+        valdir = args.data_path
+        from dataloaders.visim_dataloader import VISIMDataset
+        if not args.evaluate:
+            train_dataset = VISIMDataset(traindir, type='train',
+                modality=args.modality, sparsifier=sparsifier,depth_divider=args.depth_divider, arch=args.arch)
+        val_dataset = VISIMDataset(valdir, type='val',
+            modality=args.modality, sparsifier=sparsifier,depth_divider=args.depth_divider, arch=args.arch)
+
+    elif args.data == 'visim_seq':
         traindir = args.data_path
         valdir = args.data_path
         from dataloaders.visim_dataloader import VISIMSeqDataset
@@ -55,7 +82,7 @@ def create_data_loaders(args):
 
     else:
         raise RuntimeError('Dataset not found.' +
-                           'The dataset must be either of visim or ???.')
+                           'The dataset must be either of nyudepthv2 or kitti.')
 
     # set batch size to be 1 for validation
     val_loader = torch.utils.data.DataLoader(val_dataset,
@@ -122,58 +149,64 @@ def main():
 
         train_loader, val_loader = create_data_loaders(args)
         print("=> creating Model ({}-{}-{}) ...".format(args.arch, args.decoder, args.depth_weight_head_type))
-        in_channels = g_modality.num_channels()
-        if args.arch == 'resnet50':
-            model = ResNet(layers=50, decoder=args.decoder, output_size=train_loader.dataset.output_size,
-                in_channels=in_channels, pretrained=args.pretrained)
-        elif args.arch == 'resnet18':
-            model = ResNet(layers=18, decoder=args.decoder, output_size=train_loader.dataset.output_size,
-                in_channels=in_channels, pretrained=args.pretrained)
-        elif args.arch == 'resnet34':
-            model = ResNet(layers=34, decoder=args.decoder, output_size=train_loader.dataset.output_size,
-                in_channels=in_channels, pretrained=args.pretrained)
-        elif args.arch == 'depthcompnet18':
-            model = DepthCompletionNet(layers=18,modality_format=g_modality.format,
-                                       pretrained=args.pretrained)
-        elif args.arch == 'depthcompnet34':
-            model = DepthCompletionNet(layers=34,
-                                       modality_format=g_modality.format,
-                                       pretrained=args.pretrained)
-        elif args.arch == 'depthcompnet50':
-            model = DepthCompletionNet(layers=50,
-                                       modality_format=g_modality.format,
-                                       pretrained=args.pretrained)
-        elif args.arch == 'vdepthcompnet18':
-            model = ValidDepthCompletionNet(layers=18, modality_format=g_modality.format,
-                                       pretrained=args.pretrained)
-        elif args.arch == 'vdepthcompnet34':
-            model = ValidDepthCompletionNet(layers=34,
-                                       modality_format=g_modality.format,
-                                       pretrained=args.pretrained)
-        elif args.arch == 'vdepthcompnet50':
-            model = ValidDepthCompletionNet(layers=50,
-                                       modality_format=g_modality.format,
-                                       pretrained=args.pretrained)
-        elif args.arch == 'weightcompnet18':
-            model = DepthWeightCompletionNet(layers=18,
-                                       modality_format=g_modality.format,
-                                       pretrained=args.pretrained,dw_head_type=args.depth_weight_head_type)
-        elif args.arch == 'weightcompnet34':
-            model = DepthWeightCompletionNet(layers=34,
-                                       modality_format=g_modality.format,
-                                       pretrained=args.pretrained,dw_head_type=args.depth_weight_head_type)
-        elif args.arch == 'weightcompnet50':
-            model = DepthWeightCompletionNet(layers=50,
-                                       modality_format=g_modality.format,
-                                       pretrained=args.pretrained,dw_head_type=args.depth_weight_head_type)
-        elif args.arch == 'sdepthcompnet18':
-            model = SingleDepthCompletionNet(layers=18,modality_format=g_modality.format,
-                                       pretrained=args.pretrained)
-        elif args.arch == 'fsdepthcompnet18':
-            model_dc = SingleDepthCompletionNet(layers=18, modality_format=g_modality.format,
-                                             pretrained=args.pretrained)
-            # model_fusion = FusionNet(layers=18, modality_format=g_modality.format,
-            #                                     pretrained=args.pretrained)
+        if 'fsdepthcompnet18' in args.arch :
+            if args.arch == 'efsdepthcompnet18':
+                # assert args.data == 'visim_seq','wrong type of dataloader'
+                model_single = SingleDepthCompletionNet(layers=18, modality_format=g_modality.format,
+                                                 pretrained=args.pretrained)
+
+                model = EarlyFusionNet(model_single)
+
+        else:
+            in_channels = g_modality.num_channels()
+            if args.arch == 'resnet50':
+                model = ResNet(layers=50, decoder=args.decoder, output_size=train_loader.dataset.output_size,
+                    in_channels=in_channels, pretrained=args.pretrained)
+            elif args.arch == 'resnet18':
+                model = ResNet(layers=18, decoder=args.decoder, output_size=train_loader.dataset.output_size,
+                    in_channels=in_channels, pretrained=args.pretrained)
+            elif args.arch == 'resnet34':
+                model = ResNet(layers=34, decoder=args.decoder, output_size=train_loader.dataset.output_size,
+                    in_channels=in_channels, pretrained=args.pretrained)
+            elif args.arch == 'depthcompnet18':
+                model = DepthCompletionNet(layers=18,modality_format=g_modality.format,
+                                           pretrained=args.pretrained)
+            elif args.arch == 'depthcompnet34':
+                model = DepthCompletionNet(layers=34,
+                                           modality_format=g_modality.format,
+                                           pretrained=args.pretrained)
+            elif args.arch == 'depthcompnet50':
+                model = DepthCompletionNet(layers=50,
+                                           modality_format=g_modality.format,
+                                           pretrained=args.pretrained)
+            elif args.arch == 'vdepthcompnet18':
+                model = ValidDepthCompletionNet(layers=18, modality_format=g_modality.format,
+                                           pretrained=args.pretrained)
+            elif args.arch == 'vdepthcompnet34':
+                model = ValidDepthCompletionNet(layers=34,
+                                           modality_format=g_modality.format,
+                                           pretrained=args.pretrained)
+            elif args.arch == 'vdepthcompnet50':
+                model = ValidDepthCompletionNet(layers=50,
+                                           modality_format=g_modality.format,
+                                           pretrained=args.pretrained)
+            elif args.arch == 'weightcompnet18':
+                model = DepthWeightCompletionNet(layers=18,
+                                           modality_format=g_modality.format,
+                                           pretrained=args.pretrained,dw_head_type=args.depth_weight_head_type)
+            elif args.arch == 'weightcompnet34':
+                model = DepthWeightCompletionNet(layers=34,
+                                           modality_format=g_modality.format,
+                                           pretrained=args.pretrained,dw_head_type=args.depth_weight_head_type)
+            elif args.arch == 'weightcompnet50':
+                model = DepthWeightCompletionNet(layers=50,
+                                           modality_format=g_modality.format,
+                                           pretrained=args.pretrained,dw_head_type=args.depth_weight_head_type)
+            elif args.arch == 'sdepthcompnet18':
+                model = SingleDepthCompletionNet(layers=18,modality_format=g_modality.format,
+                                           pretrained=args.pretrained)
+
+
 
 
 
@@ -265,7 +298,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
     model.train() # switch to train mode
     end = time.time()
 
-    for i, (input, target,min_depth,max_depth) in enumerate(train_loader):
+    for i, (input, target, scale) in enumerate(train_loader):
 
         #torch.cuda.synchronize()
         data_time = 0 #time.time() - end
@@ -280,11 +313,28 @@ def train(train_loader, model, criterion, optimizer, epoch):
             loss = criterion(pred,valids, target_depth, epoch)
         elif 'sdepthcompnet' in args.arch :
             target_depth = target[:, 0:1, :, :]
-            valid_mask = ((target_depth > 0).detach())
-            mask = torch.zeros_like(target_depth)
-            confidence = torch.zeros_like(target_depth)
-            mask[valid_mask] = 1
-            confidence[valid_mask] = 0.7
+            mask = build_no_grad_mask(target_depth)
+            confidence = 0.7 * mask
+            # valid_mask = ((target_depth > 0).detach())
+            # mask = torch.zeros_like(target_depth)
+            # confidence = torch.zeros_like(target_depth)
+            # mask[valid_mask] = 1
+            # confidence[valid_mask] = 0.7
+            input = torch.cat([input,confidence,mask],dim=1)#r,g,b,d,c,m
+            input, target = input.cuda(), target.cuda()
+            target_depth = target[:, 0:1, :, :]
+
+            pred,pred_features = model(input)
+            if args.criterion == 'wl1smooth':
+                loss = criterion(pred, target_depth, input[:, 3:4, :, :])#.unsqueeze(1)
+            else:
+                loss = criterion(pred, target_depth, epoch)
+
+        elif 'efsdepthcompnet' in args.arch :
+            target_depth = target[:, 0:1, :, :]
+            mask = build_no_grad_mask(target_depth)
+
+            confidence = 0.7 * mask
             input = torch.cat([input,confidence,mask],dim=1)#r,g,b,d,c,m
             input, target = input.cuda(), target.cuda()
             target_depth = target[:, 0:1, :, :]
@@ -301,7 +351,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
             pred = model(input)
             loss = criterion(pred, target_depth,epoch)
 
-        if loss is None:
+        if loss is None or torch.isnan(loss) or torch.isinf(loss):
             print('ignoring image, no valid pixel')
             continue
 
@@ -312,9 +362,16 @@ def train(train_loader, model, criterion, optimizer, epoch):
         #torch.cuda.synchronize()
         gpu_time = 0 #time.time() - end
 
+
+        for cb in range(pred.shape[0]):
+            pred[cb,:,:,:] *= scale[cb]
+            target_depth[cb,:,:,:] *= scale[cb]
+
+
+
         # measure accuracy and record loss
         result = Result()
-        result.evaluate(pred.data*args.depth_divider, target_depth.data*args.depth_divider)
+        result.evaluate(pred.data, target_depth.data)
         average_meter.update(result, gpu_time, data_time,criterion.loss, input.size(0))
         end = time.time()
 
@@ -339,87 +396,6 @@ def train(train_loader, model, criterion, optimizer, epoch):
             'mae': avg.mae, 'delta1': avg.delta1, 'delta2': avg.delta2, 'delta3': avg.delta3,
             'gpu_time': avg.gpu_time, 'data_time': avg.data_time,'loss0': avg.loss0,'loss1': avg.loss1,'loss2': avg.loss2})
 
-
-def train_fusion(train_loader, model, criterion, optimizer, epoch):
-    average_meter = AverageMeter()
-
-    model.train() # switch to train mode
-    end = time.time()
-
-    for i, (input, target) in enumerate(train_loader):
-
-
-
-        #torch.cuda.synchronize()
-        data_time = 0 #time.time() - end
-
-        # compute pred
-        end = time.time()
-
-        if 'vdepthcompnet' in args.arch :
-            input, target = input.cuda(), target.cuda()
-            target_depth = target[:, 0:1, :, :]
-            pred,valids = model(input)
-            loss = criterion(pred,valids, target_depth, epoch)
-        elif 'sdepthcompnet' in args.arch :
-            target_depth = target[:, 0:1, :, :]
-            valid_mask = ((target_depth > 0).detach())
-            mask = torch.zeros_like(target_depth)
-            confidence = torch.zeros_like(target_depth)
-            mask[valid_mask] = 1
-            confidence[valid_mask] = 0.7
-            input = torch.cat([input,confidence,mask],dim=1)#r,g,b,d,c,m
-            input, target = input.cuda(), target.cuda()
-            target_depth = target[:, 0:1, :, :]
-            pred,_ = model(input)
-            if args.criterion == 'wl1smooth':
-                loss = criterion(pred, target_depth, target[:, 3:4, :, :])
-            else:
-                loss = criterion(pred, target_depth, epoch)
-
-        else:
-            input, target = input.cuda(), target.cuda()
-            target_depth = target[:, 0:1, :, :]
-            pred = model(input)
-            loss = criterion(pred, target_depth,epoch)
-
-        if loss is None:
-            print('ignoring image, no valid pixel')
-            continue
-
-        optimizer.zero_grad()
-        loss.backward() # compute gradient and do SGD step
-        optimizer.step()
-
-        #torch.cuda.synchronize()
-        gpu_time = 0 #time.time() - end
-
-        # measure accuracy and record loss
-        result = Result()
-        result.evaluate(pred.data*args.depth_divider, target_depth.data*args.depth_divider)
-        average_meter.update(result, gpu_time, data_time,criterion.loss, input.size(0))
-        end = time.time()
-
-        if (i + 1) % args.print_freq == 0:
-            print('=> output: {}'.format(output_directory))
-            print('Train Epoch: {0} [{1}/{2}]\t'
-                  't_Data={data_time:.3f}({average.data_time:.3f}) '
-                  't_GPU={gpu_time:.3f}({average.gpu_time:.3f})\n\t'
-                  'RMSE={result.rmse:.2f}({average.rmse:.2f}) '
-                  'MAE={result.mae:.2f}({average.mae:.2f}) '
-                  'Delta1={result.delta1:.3f}({average.delta1:.3f}) '
-                  'REL={result.absrel:.3f}({average.absrel:.3f}) '
-                  'Lg10={result.lg10:.3f}({average.lg10:.3f}) '
-                  'Loss={losses[0]}/{losses[1]}/{losses[2]} '.format(
-                  epoch, i+1, len(train_loader), data_time=data_time,
-                  gpu_time=gpu_time, result=result, average=average_meter.average(),losses=criterion.loss))
-
-    avg = average_meter.average()
-    with open(train_csv, 'a') as csvfile:
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-        writer.writerow({'mse': avg.mse, 'rmse': avg.rmse, 'absrel': avg.absrel, 'lg10': avg.lg10,
-            'mae': avg.mae, 'delta1': avg.delta1, 'delta2': avg.delta2, 'delta3': avg.delta3,
-            'gpu_time': avg.gpu_time, 'data_time': avg.data_time,'loss0': avg.loss0,'loss1': avg.loss1,'loss2': avg.loss2})
 
 
 def validate(val_loader, model, epoch, write_to_file=True):
@@ -429,7 +405,7 @@ def validate(val_loader, model, epoch, write_to_file=True):
     end = time.time()
     num_of_images = 40
     sample_step = math.floor(len(val_loader) / float(num_of_images))
-    for i, (input, target,min_depth,max_depth) in enumerate(val_loader):
+    for i, (input, target,scale) in enumerate(val_loader):
         input, target = input.cuda(), target.cuda()
         #torch.cuda.synchronize()
         data_time = 0 #time.time() - end
@@ -459,12 +435,16 @@ def validate(val_loader, model, epoch, write_to_file=True):
             target_depth = target[:, 0:1, :, :]
             #target_normal = target[:, 1:4, :, :]
 
+
+            pred[0, :, :, :] *= scale[0]
+            target_depth[0, :, :, :] *= scale[0]
+
             normal_eval(pred, target_depth)
             pred_normal, target_normal = normal_eval.get_extra_visualization()
 
         # measure accuracy and record loss
         result = Result()
-        result.evaluate(pred.data*args.depth_divider, target_depth.data*args.depth_divider)
+        result.evaluate(pred.data, target_depth.data)
         average_meter.update(result, gpu_time, data_time,normal_eval.loss, input.size(0))
         end = time.time()
 
@@ -487,16 +467,14 @@ def validate(val_loader, model, epoch, write_to_file=True):
         else:
             rgb = torch.zeros(input[:, 0:1, :, :].size()).expand(-1,3,-1,-1)
 
-
-
         depth_nchannels,_ = g_modality.get_input_depth_channel()
         if(depth_nchannels == 1):
-            depth = input[:,image_nchannels:(image_nchannels+1),:,:]*args.depth_divider
+            depth = input[:,image_nchannels:(image_nchannels+1),:,:]*scale[0]
         else:
-            depth = torch.zeros(input[:, 0:1, :, :].size())
+            depth = torch.zeros(input[:, 0:1, :, :].size())*scale[0]
 
-        target_img = target_depth*args.depth_divider
-        pred_img = pred * args.depth_divider
+        target_img = target_depth
+        pred_img = pred
 
         if i == 0:
             img_merge = utils.merge_into_row_with_gt(rgb, depth, target_img, pred_img,target_normal,pred_normal,valids)
@@ -505,9 +483,10 @@ def validate(val_loader, model, epoch, write_to_file=True):
         elif (i < num_of_images*skip) and (i % skip == 0):
             row = utils.merge_into_row_with_gt(rgb, depth, target_img, pred_img,target_normal,pred_normal,valids)
             img_merge = utils.add_row(img_merge, row)
-        #elif i == 8*skip:
-            filename = output_directory + '/comparison_' + str(epoch) + '.png'
-            utils.save_image(img_merge, filename)
+
+            if (i % (4*skip) == 0):
+                filename = output_directory + '/comparison_' + str(epoch) + '.png'
+                utils.save_image(img_merge, filename)
 
         if (i+1) % args.print_freq == 0:
             print('Test: [{0}/{1}]\t'

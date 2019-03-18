@@ -5,6 +5,13 @@ import torch.nn.functional as F
 from torchvision.models import resnet
 from model_ext import init_weights,conv_bn_relu
 
+def build_no_grad_mask(depth):
+    valid_mask = ((depth > 0).detach())
+    mask = torch.zeros_like(depth)
+    mask[valid_mask] = 1
+    return mask
+
+
 def conv_bn_relu_resnet(in_channels, out_channels, kernel_size, \
         stride=1, padding=0, bn=True, relu=True, resnet_layer=True):
     bias = not bn
@@ -79,8 +86,24 @@ class SingleDepthCompletionNet(nn.Module):
 
     def __init__(self, layers=18, modality_format='rgbd', pretrained=True):
         self.modality = modality_format
-        self.create_from_zoo(layers=layers, pretrained=pretrained)
 
+
+        if not isinstance(pretrained,bool):
+            pretrained_dict = pretrained.state_dict()
+            use_resnet =True
+        else:
+            use_resnet = pretrained
+
+        self.create_from_zoo(layers=layers, pretrained=use_resnet)
+
+        if not isinstance(pretrained, bool):
+            model_dict = self.state_dict()
+            # 1. filter out unnecessary keys
+            pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
+            # 2. overwrite entries in the existing state dict
+            model_dict.update(pretrained_dict)
+            # 3. load the new state dict
+            self.load_state_dict(model_dict)
 
     def create_from_zoo(self, layers=18,pretrained=True):
 
@@ -196,38 +219,43 @@ class SingleDepthCompletionNet(nn.Module):
 
 class EarlyFusionNet(nn.Module):
 
-    def __init__(self, num_previous_features):
+    def __init__(self, single_depth_completion_model):
         super(EarlyFusionNet, self).__init__()
+        self.num_previous_features = 65 # photometric error + 64 features from the last deconvolution
+        self.single_depth_completion_model = single_depth_completion_model
         self.softmax2d = nn.Softmax2d()
-        self.previous_confidence_stack = conv_depth_features_validation(num_previous_features)
-        self.num_previous_features = num_previous_features
+        self.previous_confidence_stack = conv_depth_features_validation(self.num_previous_features)
 
 
     #curr_input (d+w from slam in the current time)
-    def forward(self, curr_input,previous_projected_input):
-        assert curr_input.shape[1] == 2, "current input with wrong size"
-        assert previous_projected_input.shape[1] == self.num_previous_features, "previous_projected_input with wrong size"
+    def forward(self, curr_input,previous_projected_input=None):
+        assert curr_input.shape[1] == 6, "current input with wrong size"
+        if previous_projected_input is not None:
+            assert previous_projected_input.shape[1] == self.num_previous_features, "previous_projected_input with wrong size"
 
-        curr_input_depth = curr_input[:,0:1,:,:]
-        curr_input_confidence = curr_input[:, 1:2, :, :]
-        previous_proj_depth = curr_input[:,0:1,:,:]
-        previous_proj_confidence_features = curr_input[:,1:(self.num_previous_features+2),:,:]
+        curr_input_depth = curr_input[:,3:4,:,:]
+        curr_input_confidence = curr_input[:, 4:5, :, :]
+        if previous_projected_input is not None:
+            previous_proj_depth = previous_projected_input[:,0:1,:,:]
+            previous_proj_confidence_features = previous_projected_input[:,1:(self.num_previous_features+2),:,:]
+            previous_confidence = self.previous_confidence_stack(previous_proj_confidence_features)
 
-        previous_confidence = self.previous_confidence_stack(previous_proj_confidence_features)
+            confidences = torch.cat([curr_input_confidence,previous_confidence],dim=1)
+            weights = self.softmax2d(confidences)
+            previous_weighted_depth = weights[:, 1, :, :] * previous_proj_depth
+            previous_weighted_confidence = weights[:, 1, :, :] * previous_confidence
 
-        confidences = torch.cat([curr_input_confidence,previous_confidence],dim=1)
-        weights = self.softmax2d(confidences)
+            curr_weighted_depth = weights[:,0,:,:]*curr_input_depth
+            curr_weighted_confidence = weights[:, 0, :, :] * curr_input_confidence
 
-        curr_weighted_depth = weights[:,0,:,:]*curr_input_depth
-        curr_weighted_confidence = weights[:, 0, :, :] * curr_input_confidence
+            fused_depth = curr_weighted_depth + previous_weighted_depth
+            fused_confidence = curr_weighted_confidence + previous_weighted_confidence
+            fused_mask = build_no_grad_mask(fused_depth)
+            single_input = torch.cat([ curr_input[:,0:3,:,:], fused_depth,fused_confidence ,fused_mask],dim=1)
+        else:
+            single_input = curr_input
 
-        previous_weighted_depth = weights[:, 1, :, :] * previous_proj_depth
-        previous_weighted_confidence = weights[:, 1, :, :] * previous_confidence
-
-        fused_depth = curr_weighted_depth + previous_weighted_depth
-        fused_confidence = curr_weighted_confidence + previous_weighted_confidence
-
-        return fused_depth,fused_confidence
+        return self.single_depth_completion_model(single_input)
 
 
 class LateFusionNet(nn.Module):
@@ -241,7 +269,7 @@ class LateFusionNet(nn.Module):
         self.num_curr_features = num_curr_features
 
     # curr_input (d+w from slam in the current time)
-    def forward(self, curr_input, previous_projected_input):
+    def forward(self, curr_input, previous_projected_input=None):
         assert curr_input.shape[1] == self.num_curr_features, "current input with wrong size"
         assert previous_projected_input.shape[
                    1] == self.num_previous_features, "previous_projected_input with wrong size"
