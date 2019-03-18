@@ -26,16 +26,15 @@ def conv_bn_relu_resnet(in_channels, out_channels, kernel_size, \
     return layers
 
 
-def conv_validation(in_channels):
+def conv_depth_features_validation(channels):
 
     layers = []
-    layers.append(nn.Conv2d(in_channels, 64, 3, 1,
+    layers.append(nn.Conv2d(channels, channels, 3, 1,
         1, bias=False))
-    layers.append(nn.BatchNorm2d(64))
+    layers.append(nn.BatchNorm2d(channels))
     layers.append(nn.LeakyReLU(0.2, inplace=True))
-    layers.append(nn.Conv2d(64, 1, 1, 1,
+    layers.append(nn.Conv2d(channels, 1, 1, 1,
                             0, bias=True))
-    # layers.append(nn.Sigmoid())
 
     layers = nn.Sequential(*layers)
 
@@ -195,10 +194,76 @@ class SingleDepthCompletionNet(nn.Module):
         return y
 
 
-class FusionNet(nn.Module):
+class EarlyFusionNet(nn.Module):
 
-    def __init__(self):
-        super(FusionNet, self).__init__()
+    def __init__(self, num_previous_features):
+        super(EarlyFusionNet, self).__init__()
+        self.softmax2d = nn.Softmax2d()
+        self.previous_confidence_stack = conv_depth_features_validation(num_previous_features)
+        self.num_previous_features = num_previous_features
 
-    def forward(self, depth_pred,pred_features):
-        return depth_pred
+
+    #curr_input (d+w from slam in the current time)
+    def forward(self, curr_input,previous_projected_input):
+        assert curr_input.shape[1] == 2, "current input with wrong size"
+        assert previous_projected_input.shape[1] == self.num_previous_features, "previous_projected_input with wrong size"
+
+        curr_input_depth = curr_input[:,0:1,:,:]
+        curr_input_confidence = curr_input[:, 1:2, :, :]
+        previous_proj_depth = curr_input[:,0:1,:,:]
+        previous_proj_confidence_features = curr_input[:,1:(self.num_previous_features+2),:,:]
+
+        previous_confidence = self.previous_confidence_stack(previous_proj_confidence_features)
+
+        confidences = torch.cat([curr_input_confidence,previous_confidence],dim=1)
+        weights = self.softmax2d(confidences)
+
+        curr_weighted_depth = weights[:,0,:,:]*curr_input_depth
+        curr_weighted_confidence = weights[:, 0, :, :] * curr_input_confidence
+
+        previous_weighted_depth = weights[:, 1, :, :] * previous_proj_depth
+        previous_weighted_confidence = weights[:, 1, :, :] * previous_confidence
+
+        fused_depth = curr_weighted_depth + previous_weighted_depth
+        fused_confidence = curr_weighted_confidence + previous_weighted_confidence
+
+        return fused_depth,fused_confidence
+
+
+class LateFusionNet(nn.Module):
+
+    def __init__(self, num_curr_features, num_previous_features):
+        super(LateFusionNet, self).__init__()
+        self.softmax2d = nn.Softmax2d()
+        self.previous_confidence_stack = conv_depth_features_validation(num_previous_features)
+        self.curr_confidence_stack = conv_depth_features_validation(num_curr_features)
+        self.num_previous_features = num_previous_features
+        self.num_curr_features = num_curr_features
+
+    # curr_input (d+w from slam in the current time)
+    def forward(self, curr_input, previous_projected_input):
+        assert curr_input.shape[1] == self.num_curr_features, "current input with wrong size"
+        assert previous_projected_input.shape[
+                   1] == self.num_previous_features, "previous_projected_input with wrong size"
+
+        curr_input_depth = curr_input[:, 0:1, :, :]
+        curr_input_confidence_features = curr_input[:, 1:(self.num_curr_features + 2), :, :]
+        previous_proj_depth = curr_input[:, 0:1, :, :]
+        previous_proj_confidence_features = curr_input[:, 1:(self.num_previous_features + 2), :, :]
+
+        curr_confidence = self.curr_confidence_stack(previous_proj_confidence_features)
+        previous_confidence = self.previous_confidence_stack(previous_proj_confidence_features)
+
+        confidences = torch.cat([curr_confidence, previous_confidence], dim=1)
+        weights = self.softmax2d(confidences)
+
+        curr_weighted_depth = weights[:, 0, :, :] * curr_input_depth
+        curr_weighted_confidence = weights[:, 0, :, :] * curr_confidence
+
+        previous_weighted_depth = weights[:, 1, :, :] * previous_proj_depth
+        previous_weighted_confidence = weights[:, 1, :, :] * previous_confidence
+
+        fused_depth = curr_weighted_depth + previous_weighted_depth
+        fused_confidence = curr_weighted_confidence + previous_weighted_confidence
+
+        return fused_depth, fused_confidence

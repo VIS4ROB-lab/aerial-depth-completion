@@ -98,7 +98,7 @@ class VISIMDataset(MyDataloaderExt):
 
 class VISIMSeqDataset(MyDataloaderExt):
     def __init__(self, root, type, sparsifier=None, modality='rgb', arch='resnet18',depth_divider=1.0):
-        super(VISIMDataset, self).__init__(root, type, sparsifier, modality)
+        super(VISIMSeqDataset, self).__init__(root, type, sparsifier, modality)
         self.depth_divider = depth_divider
         self.arch = arch
 

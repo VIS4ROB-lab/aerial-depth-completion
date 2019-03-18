@@ -455,4 +455,4 @@ class SeqMyDataloaderExt(MyDataloaderExt):
         super(SeqMyDataloaderExt,self).__init__(root,type,sparsifier,modality)
 
     def __getitem__(self, index):
-
+        super(SeqMyDataloaderExt,self).__getitem__(self, index)
