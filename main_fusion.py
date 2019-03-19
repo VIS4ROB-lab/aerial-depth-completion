@@ -383,19 +383,19 @@ def train(train_loader, model, criterion, optimizer, epoch):
                         photometric_error = (rbg_projected_back - input_vec[:,0:3,:,:]).abs().norm(dim=1,keepdim=True)
                         features_vec= torch.cat([pred,photometric_error,pred_features],dim=1)
 
-                        def rgb2grayscale(rgb):
-                            return rgb[0, :, :] * 0.2989 + rgb[1, :, :] * 0.587 + rgb[2, :, :] * 0.114
+                        # def rgb2grayscale(rgb):
+                        #     return rgb[0, :, :] * 0.2989 + rgb[1, :, :] * 0.587 + rgb[2, :, :] * 0.114
+                        #
+                        # img1 = rbg_projected_back[0, :, :, :].cpu().numpy()
+                        # img2 = input_vec[0, 0:3, :, :].cpu().numpy()
+                        #
+                        # img1[0, :, :] = rgb2grayscale(img1)*5
+                        # img1[1, :, :] = rgb2grayscale(img2)*5
+                        # img1[2, :, :] = 0
+                        # imgplot = plt.imshow(img1.transpose([1, 2, 0]))
+                        # plt.show()
 
-                        img1 = rbg_projected_back[0, :, :, :].cpu().numpy()
-                        img2 = input_vec[0, 0:3, :, :].cpu().numpy()
-
-                        img1[0, :, :] = rgb2grayscale(img1)*5
-                        img1[1, :, :] = rgb2grayscale(img2)*5
-                        img1[2, :, :] = 0
-                        imgplot = plt.imshow(img1.transpose([1, 2, 0]))
-                        plt.show()
-
-                        transformed_feature_vec = torch.zeros_like(features_vec)
+                        # transformed_feature_vec = torch.zeros_like(features_vec)
 
                         map_t1_t.floor_()
 

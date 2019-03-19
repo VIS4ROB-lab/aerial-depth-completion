@@ -223,6 +223,7 @@ class EarlyFusionNet(nn.Module):
         super(EarlyFusionNet, self).__init__()
         self.num_previous_features = 65 # photometric error + 64 features from the last deconvolution
         self.single_depth_completion_model = single_depth_completion_model
+        #self.single_depth_completion_model.freeze()
         self.softmax2d = nn.Softmax2d()
         self.previous_confidence_stack = conv_depth_features_validation(self.num_previous_features)
 
