@@ -8,6 +8,7 @@ import torch.backends.cudnn as cudnn
 import torch.optim
 from torchsummary import summary
 cudnn.benchmark = True
+import matplotlib.pyplot as plt
 
 from models import ResNet
 from model_ext import DepthCompletionNet,DepthWeightCompletionNet,ValidDepthCompletionNet
@@ -17,6 +18,7 @@ from dataloaders.dense_to_sparse import UniformSampling, SimulatedStereo
 import criteria
 import utils
 from dataloaders.dataloader_ext import Modality
+import inverse_warp as iw
 
 args = utils.parse_command()
 print(args)
@@ -289,16 +291,15 @@ def main():
         }, is_best, epoch, output_directory)
 
 
-
-
-
 def train(train_loader, model, criterion, optimizer, epoch):
     average_meter = AverageMeter()
 
+    gpu_time = data_time = 0
     model.train() # switch to train mode
     end = time.time()
+    intrinsics = iw.Intrinsics(752, 480, 455, 455, 0, 0)
 
-    for i, (input, target, scale) in enumerate(train_loader):
+    for i, (input, target, scale,transformations) in enumerate(train_loader):
 
         #torch.cuda.synchronize()
         data_time = 0 #time.time() - end
@@ -306,88 +307,181 @@ def train(train_loader, model, criterion, optimizer, epoch):
         # compute pred
         end = time.time()
 
-        if 'vdepthcompnet' in args.arch :
-            input, target = input.cuda(), target.cuda()
-            target_depth = target[:, 0:1, :, :]
-            pred,valids = model(input)
-            loss = criterion(pred,valids, target_depth, epoch)
-        elif 'sdepthcompnet' in args.arch :
-            target_depth = target[:, 0:1, :, :]
-            mask = build_no_grad_mask(target_depth)
-            confidence = 0.7 * mask
-            # valid_mask = ((target_depth > 0).detach())
-            # mask = torch.zeros_like(target_depth)
-            # confidence = torch.zeros_like(target_depth)
-            # mask[valid_mask] = 1
-            # confidence[valid_mask] = 0.7
-            input = torch.cat([input,confidence,mask],dim=1)#r,g,b,d,c,m
-            input, target = input.cuda(), target.cuda()
-            target_depth = target[:, 0:1, :, :]
+        if 'efsdepthcompnet' in args.arch :
 
-            pred,pred_features = model(input)
-            if args.criterion == 'wl1smooth':
-                loss = criterion(pred, target_depth, input[:, 3:4, :, :])#.unsqueeze(1)
-            else:
-                loss = criterion(pred, target_depth, epoch)
+            num_loops = len(input)
+            previous_frame = None
 
-        elif 'efsdepthcompnet' in args.arch :
-            target_depth = target[:, 0:1, :, :]
-            mask = build_no_grad_mask(target_depth)
+            for t in range(num_loops):
 
-            confidence = 0.7 * mask
-            input = torch.cat([input,confidence,mask],dim=1)#r,g,b,d,c,m
-            input, target = input.cuda(), target.cuda()
-            target_depth = target[:, 0:1, :, :]
+                #prepare input
+                curr_input = input[t]
+                mask = build_no_grad_mask(curr_input[:,3:4,:,:])
+                confidence = 0.7 * mask #fake confidence
+                input_vec = torch.cat([curr_input,confidence,mask],dim=1)#r,g,b,d,c,m
+                input_vec = input_vec.cuda()
 
-            pred,pred_features = model(input)
-            if args.criterion == 'wl1smooth':
-                loss = criterion(pred, target_depth, input[:, 3:4, :, :])#.unsqueeze(1)
-            else:
-                loss = criterion(pred, target_depth, epoch)
+                #prepare target
+                target_depth = target[t].cuda()
+
+                #scale to [0,10]
+                for cb in range(input_vec.shape[0]):
+                    input_vec[cb, 0, :, :] *= scale[t][cb].float().cuda()
+                    target_depth_scaled = target_depth * scale[t][cb].float().cuda()
+
+                #run model
+                pred,pred_features = model(input_vec,previous_frame)
+
+                if i > 0:
+                    if args.criterion == 'wl1smooth':
+                        loss = criterion(pred, target_depth_scaled, input_vec[:, 3:4, :, :])
+                    else:
+                        loss = criterion(pred, target_depth_scaled, epoch)
+
+                    if loss is None or torch.isnan(loss) or torch.isinf(loss):
+                        print('ignoring image, no valid pixel')
+                        continue
+
+                    optimizer.zero_grad()
+                    loss.backward()  # compute gradient and do SGD step
+                    optimizer.step()
+
+                    # scale back
+                    for cb in range(input_vec.shape[0]):
+                        pred[cb, 0, :, :] /= scale[t][cb].float().cuda()
+
+                    # measure accuracy and record loss
+                    result = Result()
+                    result.evaluate(pred.data, target_depth.data)
+                    average_meter.update(result, gpu_time, data_time, criterion.loss, input_vec.size(0))
+                    end = time.time()
+
+                    if (i + 1) % args.print_freq == 0:
+                        print('=> output: {}'.format(output_directory))
+                        print('Train Epoch: {0} [{1}/{2}]\t'
+                              't_Data={data_time:.3f}({average.data_time:.3f}) '
+                              't_GPU={gpu_time:.3f}({average.gpu_time:.3f})\n\t'
+                              'RMSE={result.rmse:.2f}({average.rmse:.2f}) '
+                              'MAE={result.mae:.2f}({average.mae:.2f}) '
+                              'Delta1={result.delta1:.3f}({average.delta1:.3f}) '
+                              'REL={result.absrel:.3f}({average.absrel:.3f}) '
+                              'Lg10={result.lg10:.3f}({average.lg10:.3f}) '
+                              'Loss={losses[0]}/{losses[1]}/{losses[2]} '.format(
+                            epoch, i + 1, len(train_loader), data_time=data_time,
+                            gpu_time=gpu_time, result=result, average=average_meter.average(), losses=criterion.loss))
+
+
+                if t < len(input)-1:
+                    t_wct = transformations[t].float()
+                    t_wct1 = transformations[t+1].float()
+                    t_ct1_ct = t_wct #create size
+                    for bi in range(t_wct.shape[0]):
+                        t_ct1_ct[bi,:,:] = torch.matmul(iw.inverse_pose(t_wct1[bi,:,:]) , t_wct[bi,:,:])
+                    r_mat,t_vec = iw.decompose4(t_ct1_ct)
+                    with torch.no_grad():
+                        rbg_projected_back, map_t1_t  = iw.homography_from(input[t+1][:,0:3,:,:].cuda(),pred[:,:,:,:],r_mat.cuda(),t_vec.cuda(),intrinsics.scale(pred.shape[2],pred.shape[3]).cuda())
+                        photometric_error = (rbg_projected_back - input_vec[:,0:3,:,:]).abs().norm(dim=1,keepdim=True)
+                        features_vec= torch.cat([pred,photometric_error,pred_features],dim=1)
+
+                        def rgb2grayscale(rgb):
+                            return rgb[0, :, :] * 0.2989 + rgb[1, :, :] * 0.587 + rgb[2, :, :] * 0.114
+
+                        img1 = rbg_projected_back[0, :, :, :].cpu().numpy()
+                        img2 = input_vec[0, 0:3, :, :].cpu().numpy()
+
+                        img1[0, :, :] = rgb2grayscale(img1)*5
+                        img1[1, :, :] = rgb2grayscale(img2)*5
+                        img1[2, :, :] = 0
+                        imgplot = plt.imshow(img1.transpose([1, 2, 0]))
+                        plt.show()
+
+                        transformed_feature_vec = torch.zeros_like(features_vec)
+
+                        map_t1_t.floor_()
+
+                        # for bi in  range(features_vec.shape[0]):
+                        #     for row in range(features_vec.shape[2]):
+                        #         for col in range(features_vec.shape[3]):
+                        #             new_u = map_t1_t[bi, row, col, 0].long()
+                        #             new_v = map_t1_t[bi, row, col, 1].long()
+                        #             if new_u >= features_vec.shape[2] or new_v >= features_vec.shape[3]:
+                        #                 a =1
+                        #                 #print('estranho: {} / {}'.format(new_u,new_v))
+                        #             elif new_u >= 0 and new_v >= 0:
+                        #                 transformed_feature_vec[bi,:,new_u,new_v] =  features_vec[bi,:,row,col]
+                        #
+                        #
+                        # #set features for the next frame
+                        # previous_frame = transformed_feature_vec
 
         else:
-            input, target = input.cuda(), target.cuda()
-            target_depth = target[:, 0:1, :, :]
-            pred = model(input)
-            loss = criterion(pred, target_depth,epoch)
+            if 'vdepthcompnet' in args.arch:
+                input, target = input.cuda(), target.cuda()
+                target_depth = target[:, 0:1, :, :]
+                pred, valids = model(input)
+                loss = criterion(pred, valids, target_depth, epoch)
+            elif args.arch == 'sdepthcompnet':
+                target_depth = target[:, 0:1, :, :]
+                mask = build_no_grad_mask(target_depth)
+                confidence = 0.7 * mask
+                # valid_mask = ((target_depth > 0).detach())
+                # mask = torch.zeros_like(target_depth)
+                # confidence = torch.zeros_like(target_depth)
+                # mask[valid_mask] = 1
+                # confidence[valid_mask] = 0.7
+                input = torch.cat([input, confidence, mask], dim=1)  # r,g,b,d,c,m
+                input, target = input.cuda(), target.cuda()
+                target_depth = target[:, 0:1, :, :]
 
-        if loss is None or torch.isnan(loss) or torch.isinf(loss):
-            print('ignoring image, no valid pixel')
-            continue
+                pred, pred_features = model(input)
+                if args.criterion == 'wl1smooth':
+                    loss = criterion(pred, target_depth, input[:, 3:4, :, :])  # .unsqueeze(1)
+                else:
+                    loss = criterion(pred, target_depth, epoch)
 
-        optimizer.zero_grad()
-        loss.backward() # compute gradient and do SGD step
-        optimizer.step()
+            else:
+                input, target = input.cuda(), target.cuda()
+                target_depth = target[:, 0:1, :, :]
+                pred = model(input)
+                loss = criterion(pred, target_depth,epoch)
 
-        #torch.cuda.synchronize()
-        gpu_time = 0 #time.time() - end
+            if loss is None or torch.isnan(loss) or torch.isinf(loss):
+                print('ignoring image, no valid pixel')
+                continue
+
+            optimizer.zero_grad()
+            loss.backward() # compute gradient and do SGD step
+            optimizer.step()
+
+            #torch.cuda.synchronize()
+            gpu_time = 0 #time.time() - end
 
 
-        for cb in range(pred.shape[0]):
-            pred[cb,:,:,:] *= scale[cb]
-            target_depth[cb,:,:,:] *= scale[cb]
+            for cb in range(pred.shape[0]):
+                pred[cb,:,:,:] *= scale[cb].float().cuda()
+                target_depth[cb,:,:,:] *= scale[cb].float().cuda()
 
 
 
-        # measure accuracy and record loss
-        result = Result()
-        result.evaluate(pred.data, target_depth.data)
-        average_meter.update(result, gpu_time, data_time,criterion.loss, input.size(0))
-        end = time.time()
+            # measure accuracy and record loss
+            result = Result()
+            result.evaluate(pred.data, target_depth.data)
+            average_meter.update(result, gpu_time, data_time,criterion.loss, input.size(0))
+            end = time.time()
 
-        if (i + 1) % args.print_freq == 0:
-            print('=> output: {}'.format(output_directory))
-            print('Train Epoch: {0} [{1}/{2}]\t'
-                  't_Data={data_time:.3f}({average.data_time:.3f}) '
-                  't_GPU={gpu_time:.3f}({average.gpu_time:.3f})\n\t'
-                  'RMSE={result.rmse:.2f}({average.rmse:.2f}) '
-                  'MAE={result.mae:.2f}({average.mae:.2f}) '
-                  'Delta1={result.delta1:.3f}({average.delta1:.3f}) '
-                  'REL={result.absrel:.3f}({average.absrel:.3f}) '
-                  'Lg10={result.lg10:.3f}({average.lg10:.3f}) '
-                  'Loss={losses[0]}/{losses[1]}/{losses[2]} '.format(
-                  epoch, i+1, len(train_loader), data_time=data_time,
-                  gpu_time=gpu_time, result=result, average=average_meter.average(),losses=criterion.loss))
+            if (i + 1) % args.print_freq == 0:
+                print('=> output: {}'.format(output_directory))
+                print('Train Epoch: {0} [{1}/{2}]\t'
+                      't_Data={data_time:.3f}({average.data_time:.3f}) '
+                      't_GPU={gpu_time:.3f}({average.gpu_time:.3f})\n\t'
+                      'RMSE={result.rmse:.2f}({average.rmse:.2f}) '
+                      'MAE={result.mae:.2f}({average.mae:.2f}) '
+                      'Delta1={result.delta1:.3f}({average.delta1:.3f}) '
+                      'REL={result.absrel:.3f}({average.absrel:.3f}) '
+                      'Lg10={result.lg10:.3f}({average.lg10:.3f}) '
+                      'Loss={losses[0]}/{losses[1]}/{losses[2]} '.format(
+                      epoch, i+1, len(train_loader), data_time=data_time,
+                      gpu_time=gpu_time, result=result, average=average_meter.average(),losses=criterion.loss))
 
     avg = average_meter.average()
     with open(train_csv, 'a') as csvfile:

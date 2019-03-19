@@ -1,5 +1,6 @@
 import torch
 import torch.nn.functional as F
+import numpy as np
 
 class Intrinsics:
     def __init__(self, width, height, fu, fv, cu=0, cv=0):
@@ -58,7 +59,7 @@ def pointcloud_to_image(pointcloud, intrinsics):
     batch_size = pointcloud.size(0)
     X = pointcloud[:,0,:,:] #.view(batch_size, -1)
     Y = pointcloud[:,1,:,:] #.view(batch_size, -1)
-    Z = pointcloud[:,2,:,:].clamp(min=1e-3) #.view(batch_size, -1)
+    Z = pointcloud[:,2,:,:].clamp(min=1e-9) #.view(batch_size, -1)
 
     # compute pixel coordinates
     U_proj = intrinsics.fu * X / Z + intrinsics.cu # horizontal pixel coordinate
@@ -67,17 +68,22 @@ def pointcloud_to_image(pointcloud, intrinsics):
     # normalization to [-1, 1], required by torch.nn.functional.grid_sample
     U_proj_normalized = (2 * U_proj / (intrinsics.width-1) - 1).view(batch_size, -1)
     V_proj_normalized = (2 * V_proj / (intrinsics.height-1) - 1).view(batch_size, -1)
+    U_proj_view = U_proj.view(batch_size, -1)
+    V_proj_view = V_proj.view(batch_size, -1)
 
     # This was important since PyTorch didn't do as it claimed for points out of boundary
     # See https://github.com/ClementPinard/SfmLearner-Pytorch/blob/master/inverse_warp.py
     # Might not be necessary any more
     U_proj_mask = ((U_proj_normalized>1) + (U_proj_normalized<-1)).detach()
     U_proj_normalized[U_proj_mask] = 2
+    U_proj_view[U_proj_mask] = -1
     V_proj_mask = ((V_proj_normalized>1) + (V_proj_normalized<-1)).detach()
     V_proj_normalized[V_proj_mask] = 2
+    V_proj_view[V_proj_mask] = -1
 
     pixel_coords = torch.stack([U_proj_normalized, V_proj_normalized], dim=2)  # [B, H*W, 2]
-    return pixel_coords.view(batch_size, intrinsics.height, intrinsics.width, 2)
+    unnorm_pixel_coords = torch.stack([U_proj_view, V_proj_view], dim=2)  # [B, H*W, 2]
+    return pixel_coords.view(batch_size, intrinsics.height, intrinsics.width, 2),unnorm_pixel_coords.view(batch_size, intrinsics.height, intrinsics.width,2)
 
 def batch_multiply(batch_scalar, batch_matrix):
     # input: batch_scalar of size b, batch_matrix of size b * 3 * 3
@@ -111,9 +117,36 @@ def homography_from(rgb_near, depth_curr, r_mat, t_vec, intrinsics):
     # compute source pixel coordinate
     pointcloud_curr = image_to_pointcloud(depth_curr, intrinsics)
     pointcloud_near = transform_curr_to_near(pointcloud_curr, r_mat, t_vec, intrinsics)
-    pixel_coords_near = pointcloud_to_image(pointcloud_near, intrinsics)
+    pixel_coords_near,unnorm_pixel_coords_near = pointcloud_to_image(pointcloud_near, intrinsics)
 
     # the warping
     warped = F.grid_sample(rgb_near, pixel_coords_near)
 
-    return warped
+    return warped, unnorm_pixel_coords_near
+
+def inverse_pose(t_ab):
+    rot33,t = decompose(t_ab)
+    rot33_t = np.transpose(rot33)
+    t_t = -(torch.matmul(rot33_t,t))
+
+    return compose(rot33_t,t_t)
+
+def compose(r_mat33,t_vec3):
+    t_ba = torch.zeros([4,4])
+    t_ba[0:3, 0:3] = r_mat33
+    t_ba[0:3, 3] = t_vec3
+    return t_ba
+
+def decompose(transform44):
+    r_mat33 = transform44[0:3, 0:3]
+    t_vec3 = transform44[0:3, 3]
+    return r_mat33,t_vec3
+
+def decompose4(transform44):
+    r_mat33 = transform44[:,0:3, 0:3]
+    t_vec3 = transform44[:,0:3, 3]
+    return r_mat33,t_vec3
+
+
+def rgb2grayscale(rgb):
+    return rgb[0,:,:] * 0.2989 + rgb[1,:,:] * 0.587 + rgb[2,:,:] * 0.114

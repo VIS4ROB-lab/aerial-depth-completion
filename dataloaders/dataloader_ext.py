@@ -26,7 +26,7 @@ def load_files_list(path,base_filter):
         folder = os.path.dirname(path)
         for row in reader:            
             path = os.path.join(folder, row[1])
-            if base_filter is None or base_filter in path:
+            if base_filter is None or base_filter in path and 'ds-corvin' not in path:
                 item = (path,row[0])
                 images.append(item)
     return images
@@ -42,6 +42,7 @@ class Modality():
     image_size_weight_names = ['d2dwde','d2dwgt','d2dwor']
     weight_names = image_size_weight_names + ['kw'] + metric_weight_names
     need_divider = depth_channels_names + ['gt_depth'] + metric_weight_names
+    no_transform = ['t_wc','scale']
     color_names = ['rgb', 'grey']
     modality_names = color_names+depth_channels_names+weight_names
 
@@ -214,8 +215,8 @@ class MyDataloaderExt(data.Dataset):
 
  #   def h5_preprocess(self,index):
 
-
-    def h5_loader_general(self,index,type):
+#pose = none | gt | slam
+    def h5_loader_general(self,index,type,pose='none'):
         result = dict()
         path, target = self.imgs[index]
         h5f = h5py.File(path, "r")
@@ -234,6 +235,15 @@ class MyDataloaderExt(data.Dataset):
                 result['normal_z'] = normal_rescaled[2, :, :]
         elif 'depth' in h5f:
             result['gt_depth'] = depth = np.array(h5f['depth'])
+
+        if pose == 'gt':
+            assert ('gt_twc_data' in h5f), 'file {} - no pose'.format(path)
+            result['t_wc'] = np.array(h5f['gt_twc_data'])
+
+        if pose == 'slam':
+            assert ('slam_twc_data' in h5f), 'file {} - no pose'.format(path)
+            result['t_wc'] = np.array(h5f['slam_twc_data'])
+
 
 
         # color data
@@ -452,22 +462,20 @@ class MyDataloaderExt(data.Dataset):
 
 class SeqMyDataloaderExt(MyDataloaderExt):
 
-    def __init__(self, root, type, sparsifier=None, modality='rgb',sequence_size=2,skip_step=10):
+    def __init__(self, root, type, sparsifier=None, modality='rgb',sequence_size=3,skip_step=5):
         super(SeqMyDataloaderExt,self).__init__(root,type,sparsifier,modality,base_filter='ds-')
+        self.skip_step = skip_step
+        self.sequence_size = sequence_size
 
-    def __getitem__(self, index):
+    def load_one_sample(self, index):
         input_np = None
 
-        channels_np = self.h5_loader_general(index, self.modality)
+        channels_np = self.h5_loader_general(index, self.modality,pose='gt')
 
         if self.transform is not None:
             channels_transformed_np = self.transform(channels_np)
         else:
             raise (RuntimeError("transform not defined"))
-
-        # for key, value in channels_transformed_np.items():
-        #     if key == 'gt_depth':
-        #         continue
 
         num_image_channel, image_channel = self.modality.get_input_image_channel()
         if num_image_channel > 0:
@@ -482,22 +490,51 @@ class SeqMyDataloaderExt(MyDataloaderExt):
             input_np = self.append_tensor3d(input_np, channels_transformed_np[weight_channel])
 
         input_tensor = self.to_tensor(input_np)
-        target_data = None
-        target_data = channels_transformed_np['gt_depth']
-        # np.stack([channels_transformed_np['gt_depth'],channels_transformed_np['normal_x'],channels_transformed_np['normal_y'],channels_transformed_np['normal_z']])
-        # target_data = self.append_tensor3d(target_data,channels_transformed_np['gt_depth'])
-        # target_data = self.append_tensor3d(target_data, channels_transformed_np['normal_x'])
-        # target_data = self.append_tensor3d(target_data, channels_transformed_np['normal_y'])
-        # target_data = self.append_tensor3d(target_data, channels_transformed_np['normal_z'])
 
-        target_depth_tensor = self.to_tensor(target_data).unsqueeze(0)
+        target_depth_tensor = self.to_tensor(channels_transformed_np['gt_depth']).unsqueeze(0)
 
-        # target_depth_tensor = depth_tensor.unsqueeze(0)
-        #        if input_tensor.dim() == 2: #force to have a third dimension on the single channel input
-        #            input_tensor = input_tensor.unsqueeze(0)
-        #        if input_tensor.dim() < 2:
-        #            raise (RuntimeError("transform not defined"))
-        #       depth_tensor = totensor(depth_np)
-        #        depth_tensor = depth_tensor.unsqueeze(0)
+        return input_tensor, target_depth_tensor, channels_transformed_np['scale'], channels_transformed_np['t_wc']
 
-        return input_tensor, target_depth_tensor, channels_transformed_np['scale']
+    def find_near_frames(self, index):
+        _, sequence = self.imgs[index]
+        #search after
+        result = [index]
+        for i in range(1,self.sequence_size):
+            next = index + i*self.skip_step
+            if next < len(self.imgs):
+                _,next_sequence =self.imgs[next]
+                if sequence == next_sequence:
+                    result.append(next)
+                else:
+                    break
+
+        #search before
+        for i in range(1,self.sequence_size - len(result)):
+            next = index - i*self.skip_step
+            if next > 0:
+                _,next_sequence =self.imgs[next]
+                if sequence == next_sequence:
+                    result.append(next)
+                else:
+                    break
+
+        result.sort()
+        return result
+
+
+
+
+    def __getitem__(self, index):
+        near_frames = self.find_near_frames( index )
+        result_input_tensor = []
+        result_target_tensor = []
+        result_scales = []
+        result_transforms = []
+        for frame in near_frames:
+            curr_input,curr_target,curr_scale,transform = self.load_one_sample(frame)
+            result_input_tensor.append(curr_input)
+            result_target_tensor.append(curr_target)
+            result_scales.append(curr_scale)
+            result_transforms.append(transform)
+
+        return result_input_tensor,result_target_tensor,result_scales,result_transforms

@@ -231,7 +231,7 @@ class EarlyFusionNet(nn.Module):
     def forward(self, curr_input,previous_projected_input=None):
         assert curr_input.shape[1] == 6, "current input with wrong size"
         if previous_projected_input is not None:
-            assert previous_projected_input.shape[1] == self.num_previous_features, "previous_projected_input with wrong size"
+            assert previous_projected_input.shape[1] == self.num_previous_features+1, "previous_projected_input with wrong size"
 
         curr_input_depth = curr_input[:,3:4,:,:]
         curr_input_confidence = curr_input[:, 4:5, :, :]
@@ -242,11 +242,11 @@ class EarlyFusionNet(nn.Module):
 
             confidences = torch.cat([curr_input_confidence,previous_confidence],dim=1)
             weights = self.softmax2d(confidences)
-            previous_weighted_depth = weights[:, 1, :, :] * previous_proj_depth
-            previous_weighted_confidence = weights[:, 1, :, :] * previous_confidence
+            previous_weighted_depth = weights[:, 1:2, :, :] * previous_proj_depth
+            previous_weighted_confidence = weights[:, 1:2, :, :] * previous_confidence
 
-            curr_weighted_depth = weights[:,0,:,:]*curr_input_depth
-            curr_weighted_confidence = weights[:, 0, :, :] * curr_input_confidence
+            curr_weighted_depth = weights[:,0:1,:,:]*curr_input_depth
+            curr_weighted_confidence = weights[:, 0:1, :, :] * curr_input_confidence
 
             fused_depth = curr_weighted_depth + previous_weighted_depth
             fused_confidence = curr_weighted_confidence + previous_weighted_confidence
@@ -255,6 +255,7 @@ class EarlyFusionNet(nn.Module):
         else:
             single_input = curr_input
 
+        assert single_input.shape[1] == 6, "current input with wrong size"
         return self.single_depth_completion_model(single_input)
 
 

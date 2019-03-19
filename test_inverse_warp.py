@@ -61,6 +61,11 @@ rgb_near=torch.from_numpy(rgb_near_np).unsqueeze(0)
 
 depth_curr = torch.from_numpy(depth_c2.copy()).unsqueeze(0).unsqueeze(0)
 intrinsics = iw.Intrinsics(752,480,455,455,0,0)
+print(rgb_near.shape)
+print(depth_curr.shape)
+print(r_mat.shape)
+print(t_vec.shape)
+print(intrinsics.__print__())
 result = iw.homography_from(rgb_near,depth_curr,r_mat,t_vec,intrinsics)
 rgb_curr=np.array(h5f2['rgb_image_data'],dtype='float32')/80
 img = result[0,:,:,:].numpy()
