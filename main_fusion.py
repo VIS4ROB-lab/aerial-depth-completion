@@ -267,19 +267,19 @@ def main():
         print('#### lr: {}'.format(optimizer.param_groups[0]['lr']))
 
         train(train_loader, model, criterion, optimizer, epoch) # train for one epoch
-        result, img_merge = validate(val_loader, model, epoch) # evaluate on validation set
+        #result, img_merge = validate(val_loader, model, epoch) # evaluate on validation set
 
 
-        # remember best rmse and save checkpoint
-        is_best = result.rmse < best_result.rmse
-        if is_best:
-            best_result = result
-            with open(best_txt, 'w') as txtfile:
-                txtfile.write("epoch={}\nmse={:.3f}\nrmse={:.3f}\nabsrel={:.3f}\nlg10={:.3f}\nmae={:.3f}\ndelta1={:.3f}\nt_gpu={:.4f}\n".
-                    format(epoch, result.mse, result.rmse, result.absrel, result.lg10, result.mae, result.delta1, result.gpu_time))
-            if img_merge is not None:
-                img_filename = output_directory + '/comparison_best.png'
-                utils.save_image(img_merge, img_filename)
+        # # remember best rmse and save checkpoint
+        is_best = True #result.rmse < best_result.rmse
+        # if is_best:
+        #     best_result = result
+        #     with open(best_txt, 'w') as txtfile:
+        #         txtfile.write("epoch={}\nmse={:.3f}\nrmse={:.3f}\nabsrel={:.3f}\nlg10={:.3f}\nmae={:.3f}\ndelta1={:.3f}\nt_gpu={:.4f}\n".
+        #             format(epoch, result.mse, result.rmse, result.absrel, result.lg10, result.mae, result.delta1, result.gpu_time))
+        #     if img_merge is not None:
+        #         img_filename = output_directory + '/comparison_best.png'
+        #         utils.save_image(img_merge, img_filename)
 
         utils.save_checkpoint({
             'args': args,
@@ -395,24 +395,24 @@ def train(train_loader, model, criterion, optimizer, epoch):
                         # imgplot = plt.imshow(img1.transpose([1, 2, 0]))
                         # plt.show()
 
-                        # transformed_feature_vec = torch.zeros_like(features_vec)
+                        transformed_feature_vec = torch.zeros_like(features_vec)
 
                         map_t1_t.floor_()
 
-                        # for bi in  range(features_vec.shape[0]):
-                        #     for row in range(features_vec.shape[2]):
-                        #         for col in range(features_vec.shape[3]):
-                        #             new_u = map_t1_t[bi, row, col, 0].long()
-                        #             new_v = map_t1_t[bi, row, col, 1].long()
-                        #             if new_u >= features_vec.shape[2] or new_v >= features_vec.shape[3]:
-                        #                 a =1
-                        #                 #print('estranho: {} / {}'.format(new_u,new_v))
-                        #             elif new_u >= 0 and new_v >= 0:
-                        #                 transformed_feature_vec[bi,:,new_u,new_v] =  features_vec[bi,:,row,col]
-                        #
-                        #
-                        # #set features for the next frame
-                        # previous_frame = transformed_feature_vec
+                        for bi in  range(features_vec.shape[0]):
+                            for row in range(features_vec.shape[2]):
+                                for col in range(features_vec.shape[3]):
+                                    new_u = map_t1_t[bi, row, col, 0].long()
+                                    new_v = map_t1_t[bi, row, col, 1].long()
+                                    if new_u >= features_vec.shape[2] or new_v >= features_vec.shape[3]:
+                                        a =1
+                                        #print('estranho: {} / {}'.format(new_u,new_v))
+                                    elif new_u >= 0 and new_v >= 0:
+                                        transformed_feature_vec[bi,:,new_u,new_v] =  features_vec[bi,:,row,col]
+
+
+                        #set features for the next frame
+                        previous_frame = transformed_feature_vec
 
         else:
             if 'vdepthcompnet' in args.arch:
