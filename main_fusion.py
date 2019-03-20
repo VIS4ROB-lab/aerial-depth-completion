@@ -270,7 +270,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
                     target_depth[cb, 0, :, :] *= scale_t[cb]
 
                 if  t == 0 :
-                    pred,_ = model.no_grad_depth_completion(input_vec)
+                    pred = model(input_vec)
                 else:
                     t_wcs = transformations[t-1].float() # source
                     t_wct = transformations[t].float() # target
@@ -405,7 +405,7 @@ def validate(val_loader, model, epoch, write_to_file=True):
                     input_vec[cb, 0, :, :] *= scale_t[cb]
 
                 if t == 0:
-                    pred, _ = model.no_grad_depth_completion(input_vec)
+                    pred= model(input_vec)
                 else:
                     #build odometry data
                     t_wcs = transformations[t - 1].float()  # source

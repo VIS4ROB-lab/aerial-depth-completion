@@ -345,10 +345,12 @@ class LoopConfidenceNet(nn.Module):
         return list(self.curr_confidence_stack.parameters()) + list(self.singledc_2.parameters())
 
     # curr_input (d+w from slam in the current time)
-    def forward(self, slam_features,previous_rgb,previous_depth_prediction,r_mat, t_vec,scale,intrinsics):
+    def forward(self, slam_features,previous_rgb=None,previous_depth_prediction=None,r_mat=None, t_vec=None,scale=None,intrinsics=None):
 
 
         depth_prediction1,depth_features1 = self.no_grad_depth_completion(slam_features)
+        if previous_rgb is None:
+            return depth_prediction1
 
         previous_features = self.no_grad_previous_features(depth_prediction1.clone(),previous_rgb,previous_depth_prediction,r_mat, t_vec,scale,intrinsics)
 
