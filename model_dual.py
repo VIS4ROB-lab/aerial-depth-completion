@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchvision.models import resnet
 from model_ext import init_weights,conv_bn_relu
+import inverse_warp as iw
 
 def build_no_grad_mask(depth):
     valid_mask = ((depth > 0).detach())
@@ -271,8 +272,8 @@ class LateFusionNet(nn.Module):
         self.num_curr_features = num_curr_features
 
     # curr_input (d+w from slam in the current time)
-    def forward(self, curr_input, previous_projected_input=None):
-        assert curr_input.shape[1] == self.num_curr_features, "current input with wrong size"
+    def forward(self, curr_depth,curr_features, previous_projected_input=None):
+        assert curr_depth.shape[1] == self.num_curr_features, "current input with wrong size"
         assert previous_projected_input.shape[
                    1] == self.num_previous_features, "previous_projected_input with wrong size"
 
@@ -297,3 +298,81 @@ class LateFusionNet(nn.Module):
         fused_confidence = curr_weighted_confidence + previous_weighted_confidence
 
         return fused_depth, fused_confidence
+
+class ConfidenceNet(nn.Module):
+
+    #curr: 64
+    #previous: photometric error + depth error +(normals later)
+    def __init__(self, num_curr_features, num_previous_features):
+        super(ConfidenceNet, self).__init__()
+
+        self.num_previous_features = num_previous_features
+        self.num_curr_features = num_curr_features
+        self.curr_confidence_stack = conv_depth_features_validation(self.num_previous_features+self.num_curr_features)
+
+    # curr_input (d+w from slam in the current time)
+    def forward(self, curr_features, previous_features):
+        assert curr_features.shape[1] == self.num_curr_features, "current input with wrong size"
+        assert previous_features.shape[
+                   1] == self.num_previous_features, "previous_projected_input with wrong size"
+
+
+        conf_features = torch.cat([curr_features,previous_features], dim=1)
+
+        curr_confidence = self.curr_confidence_stack(conf_features)
+
+
+        return curr_confidence
+
+
+class LoopConfidenceNet(nn.Module):
+
+    #curr: 64
+    #previous: photometric error + depth error +(normals later)
+    def __init__(self,single_dc_train_weights):
+        super(LoopConfidenceNet, self).__init__()
+        self.curr_confidence_stack = conv_depth_features_validation(64+2)
+        self.singledc = SingleDepthCompletionNet(layers=18, modality_format='rgbd',
+                                 pretrained=single_dc_train_weights)
+        self.singledc.eval()
+
+    def getTrainableParameters(self):
+        return self.curr_confidence_stack.parameters()
+
+    # curr_input (d+w from slam in the current time)
+    def forward(self, slam_features,previous_rgb,previous_depth_prediction,r_mat, t_vec,scale,intrinsics):
+
+
+        depth_prediction1,depth_features1 = self.no_grad_depth_completion(slam_features)
+
+        previous_features = self.no_grad_previous_features(depth_prediction1.clone(),previous_rgb,previous_depth_prediction,r_mat, t_vec,scale,intrinsics)
+
+        conf_features = torch.cat([depth_features1, previous_features], dim=1)
+        curr_confidence = torch.sigmoid(self.curr_confidence_stack(conf_features))
+
+        slam_features[:,3:4,:,:] = depth_prediction1
+        slam_features[:, 4:5, :, :] = curr_confidence
+
+        depth_prediction2, _ = self.singledc(slam_features)
+
+        return depth_prediction2
+
+    def no_grad_depth_completion(self,slam_features):
+        with torch.no_grad():
+            return self.singledc(slam_features)
+
+    def no_grad_previous_features(self,curr_depth,previous_rgb,previous_depth_prediction,r_mat, t_vec,scale,intrinsics):
+        with torch.no_grad():
+            for cb in range(curr_depth.shape[0]):
+                curr_depth[cb, 0, :, :] /= scale[cb]
+            rgb_projected_back, depth_error = iw.homography_from_and_depth(previous_rgb,previous_depth_prediction, curr_depth,
+                                                              r_mat, t_vec,
+                                                              intrinsics.scale(previous_rgb.shape[2], previous_rgb.shape[3]).cuda())
+            photometric_error = (rgb_projected_back - previous_rgb).abs().norm(dim=1, keepdim=True)
+
+            for cb in range(curr_depth.shape[0]):
+                depth_error[cb, 0, :, :] *= scale[cb]
+
+            features_vec = torch.cat([photometric_error, depth_error], dim=1)
+
+        return features_vec

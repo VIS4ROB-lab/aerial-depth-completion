@@ -70,6 +70,7 @@ def pointcloud_to_image(pointcloud, intrinsics):
     V_proj_normalized = (2 * V_proj / (intrinsics.height-1) - 1).view(batch_size, -1)
     U_proj_view = U_proj.view(batch_size, -1)
     V_proj_view = V_proj.view(batch_size, -1)
+    Z_view = Z.view(batch_size, -1)
 
     # This was important since PyTorch didn't do as it claimed for points out of boundary
     # See https://github.com/ClementPinard/SfmLearner-Pytorch/blob/master/inverse_warp.py
@@ -82,8 +83,8 @@ def pointcloud_to_image(pointcloud, intrinsics):
     V_proj_view[V_proj_mask] = -1
 
     pixel_coords = torch.stack([U_proj_normalized, V_proj_normalized], dim=2)  # [B, H*W, 2]
-    unnorm_pixel_coords = torch.stack([U_proj_view, V_proj_view], dim=2)  # [B, H*W, 2]
-    return pixel_coords.view(batch_size, intrinsics.height, intrinsics.width, 2),unnorm_pixel_coords.view(batch_size, intrinsics.height, intrinsics.width,2)
+    unnorm_pixel_coords = torch.stack([U_proj_view, V_proj_view, Z_view], dim=2)  # [B, H*W, 2]
+    return pixel_coords.view(batch_size, intrinsics.height, intrinsics.width, 2),unnorm_pixel_coords.view(batch_size, intrinsics.height, intrinsics.width,3)
 
 def batch_multiply(batch_scalar, batch_matrix):
     # input: batch_scalar of size b, batch_matrix of size b * 3 * 3
@@ -123,6 +124,27 @@ def homography_from(rgb_near, depth_curr, r_mat, t_vec, intrinsics):
     warped = F.grid_sample(rgb_near, pixel_coords_near)
 
     return warped, unnorm_pixel_coords_near
+
+def homography_from_and_depth(rgb_near,depth_near, depth_curr, r_mat, t_vec, intrinsics):
+    # inverse warp the RGB image from the nearby frame to the current frame
+
+    # to ensure dimension consistency
+    r_mat = r_mat.view(-1, 3, 3)
+    t_vec = t_vec.view(-1, 3)
+
+    # compute source pixel coordinate
+    pointcloud_curr = image_to_pointcloud(depth_curr, intrinsics)
+    pointcloud_near = transform_curr_to_near(pointcloud_curr, r_mat, t_vec, intrinsics)
+    pixel_coords_near,unnorm_pixel_coords_near = pointcloud_to_image(pointcloud_near, intrinsics)
+
+    curr_depth_projected = unnorm_pixel_coords_near[:, :, :, 2].unsqueeze(1)
+    depth_error_on_near = (curr_depth_projected -  depth_near).abs()
+
+    # the warping
+    warped_rgb = F.grid_sample(rgb_near, pixel_coords_near)
+    warped_depth_error = F.grid_sample(depth_error_on_near, pixel_coords_near)
+
+    return warped_rgb, warped_depth_error
 
 def inverse_pose(t_ab):
     rot33,t = decompose(t_ab)

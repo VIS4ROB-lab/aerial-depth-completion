@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 
 from models import ResNet
 from model_ext import DepthCompletionNet,DepthWeightCompletionNet,ValidDepthCompletionNet
-from model_dual import SingleDepthCompletionNet,EarlyFusionNet,LateFusionNet,build_no_grad_mask
+from model_dual import SingleDepthCompletionNet,EarlyFusionNet,LateFusionNet,build_no_grad_mask,ConfidenceNet,LoopConfidenceNet
 from metrics import AverageMeter, Result
 from dataloaders.dense_to_sparse import UniformSampling, SimulatedStereo
 import criteria
@@ -140,8 +140,6 @@ def main():
 
     # create new model
     else:
-
-
         if not isinstance(args.pretrained, bool):
             print('loading pretraining {}'.format(args.pretrained))
             checkpoint_premodel = torch.load(args.pretrained)
@@ -151,75 +149,18 @@ def main():
 
         train_loader, val_loader = create_data_loaders(args)
         print("=> creating Model ({}-{}-{}) ...".format(args.arch, args.decoder, args.depth_weight_head_type))
-        if 'fsdepthcompnet18' in args.arch :
-            if args.arch == 'efsdepthcompnet18':
-                # assert args.data == 'visim_seq','wrong type of dataloader'
-                model_single = SingleDepthCompletionNet(layers=18, modality_format=g_modality.format,
-                                                 pretrained=args.pretrained)
 
-                model = EarlyFusionNet(model_single)
-
-        else:
-            in_channels = g_modality.num_channels()
-            if args.arch == 'resnet50':
-                model = ResNet(layers=50, decoder=args.decoder, output_size=train_loader.dataset.output_size,
-                    in_channels=in_channels, pretrained=args.pretrained)
-            elif args.arch == 'resnet18':
-                model = ResNet(layers=18, decoder=args.decoder, output_size=train_loader.dataset.output_size,
-                    in_channels=in_channels, pretrained=args.pretrained)
-            elif args.arch == 'resnet34':
-                model = ResNet(layers=34, decoder=args.decoder, output_size=train_loader.dataset.output_size,
-                    in_channels=in_channels, pretrained=args.pretrained)
-            elif args.arch == 'depthcompnet18':
-                model = DepthCompletionNet(layers=18,modality_format=g_modality.format,
-                                           pretrained=args.pretrained)
-            elif args.arch == 'depthcompnet34':
-                model = DepthCompletionNet(layers=34,
-                                           modality_format=g_modality.format,
-                                           pretrained=args.pretrained)
-            elif args.arch == 'depthcompnet50':
-                model = DepthCompletionNet(layers=50,
-                                           modality_format=g_modality.format,
-                                           pretrained=args.pretrained)
-            elif args.arch == 'vdepthcompnet18':
-                model = ValidDepthCompletionNet(layers=18, modality_format=g_modality.format,
-                                           pretrained=args.pretrained)
-            elif args.arch == 'vdepthcompnet34':
-                model = ValidDepthCompletionNet(layers=34,
-                                           modality_format=g_modality.format,
-                                           pretrained=args.pretrained)
-            elif args.arch == 'vdepthcompnet50':
-                model = ValidDepthCompletionNet(layers=50,
-                                           modality_format=g_modality.format,
-                                           pretrained=args.pretrained)
-            elif args.arch == 'weightcompnet18':
-                model = DepthWeightCompletionNet(layers=18,
-                                           modality_format=g_modality.format,
-                                           pretrained=args.pretrained,dw_head_type=args.depth_weight_head_type)
-            elif args.arch == 'weightcompnet34':
-                model = DepthWeightCompletionNet(layers=34,
-                                           modality_format=g_modality.format,
-                                           pretrained=args.pretrained,dw_head_type=args.depth_weight_head_type)
-            elif args.arch == 'weightcompnet50':
-                model = DepthWeightCompletionNet(layers=50,
-                                           modality_format=g_modality.format,
-                                           pretrained=args.pretrained,dw_head_type=args.depth_weight_head_type)
-            elif args.arch == 'sdepthcompnet18':
-                model = SingleDepthCompletionNet(layers=18,modality_format=g_modality.format,
-                                           pretrained=args.pretrained)
-
-
-
-
+        if args.arch == 'csdepthcompnet18':
+            model = LoopConfidenceNet(single_dc_train_weights=args.pretrained)
 
         print("=> model created. GPUS:{}".format(torch.cuda.device_count()))
-        optimizer = torch.optim.SGD(model.parameters(), args.lr, \
+        optimizer = torch.optim.SGD(model.getTrainableParameters(), args.lr, \
             momentum=args.momentum, weight_decay=args.weight_decay)
 
-        if torch.cuda.device_count() > 1 :
-            model = torch.nn.DataParallel(model) # for multi-gpu training
-        model = model.cuda()
-        # summary(model,(4,240, 320))
+    if torch.cuda.device_count() > 1 :
+        model = torch.nn.DataParallel(model) # for multi-gpu training
+    model = model.cuda()
+    # summary(model,(4,240, 320))
 
     # define loss function (criterion) and optimizer
     if args.criterion == 'l2':
@@ -295,7 +236,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
     average_meter = AverageMeter()
 
     gpu_time = data_time = 0
-    model.train() # switch to train mode
+    #model.train() # switch to train mode
     end = time.time()
     intrinsics = iw.Intrinsics(752, 480, 455, 455, 0, 0)
 
@@ -307,81 +248,102 @@ def train(train_loader, model, criterion, optimizer, epoch):
         # compute pred
         end = time.time()
 
-        if 'efsdepthcompnet' in args.arch :
+        if 'csdepthcompnet' in args.arch :
 
             num_loops = len(input)
-            previous_frame = None
+            previous_rgb = None
+            previous_depth_prediction = None
+
 
             for t in range(num_loops):
+                scale_t = scale[t].float().cuda()
 
-                #prepare input
+                # prepare input
                 curr_input = input[t]
-                mask = build_no_grad_mask(curr_input[:,3:4,:,:])
-                confidence = 0.7 * mask #fake confidence
-                input_vec = torch.cat([curr_input,confidence,mask],dim=1)#r,g,b,d,c,m
+                mask = build_no_grad_mask(curr_input[:, 3:4, :, :])
+                confidence = 0.7 * mask  # fake confidence
+                input_vec = torch.cat([curr_input, confidence, mask], dim=1)  # r,g,b,d,c,m
                 input_vec = input_vec.cuda()
-
-                #prepare target
-                target_depth = target[t].cuda()
-
-                #scale to [0,10]
                 for cb in range(input_vec.shape[0]):
-                    input_vec[cb, 0, :, :] *= scale[t][cb].float().cuda()
-                    target_depth_scaled = target_depth * scale[t][cb].float().cuda()
+                    input_vec[cb, 0, :, :] *= scale_t[cb]
 
-                #run model
-                pred,pred_features = model(input_vec,previous_frame)
+                if  t == 0 :
+                    pred,_ = model.no_grad_depth_completion(input_vec)
+                else:
+                    t_wcs = transformations[t-1].float() # source
+                    t_wct = transformations[t].float() # target
+                    t_cs_ct = t_wcs  # reuse memory
+                    for bi in range(t_wct.shape[0]):
+                        t_cs_ct[bi, :, :] = torch.matmul(iw.inverse_pose(t_wcs[bi, :, :]), t_wct[bi, :, :])
+                    r_mat, t_vec = iw.decompose4(t_cs_ct)
 
-                if i > 0:
+                    pred = model(input_vec,previous_rgb,previous_depth_prediction,r_mat.cuda(), t_vec.cuda(),scale[t].float().cuda(),intrinsics)
+
+                if t > 0:
+                    # prepare target
+                    target_depth = target[t].cuda()
+                    for cb in range(input_vec.shape[0]):
+                        target_depth[cb, 0, :, :] *= scale[t][cb].float().cuda()
+
                     if args.criterion == 'wl1smooth':
-                        loss = criterion(pred, target_depth_scaled, input_vec[:, 3:4, :, :])
+                        loss = criterion(pred, target_depth, input_vec[:, 3:4, :, :])
                     else:
-                        loss = criterion(pred, target_depth_scaled, epoch)
+                        loss = criterion(pred, target_depth, epoch)
 
                     if loss is None or torch.isnan(loss) or torch.isinf(loss):
                         print('ignoring image, no valid pixel')
-                        continue
+                        break
 
                     optimizer.zero_grad()
                     loss.backward()  # compute gradient and do SGD step
                     optimizer.step()
 
-                    # scale back
-                    for cb in range(input_vec.shape[0]):
-                        pred[cb, 0, :, :] /= scale[t][cb].float().cuda()
-
-                    # measure accuracy and record loss
-                    result = Result()
-                    result.evaluate(pred.data, target_depth.data)
-                    average_meter.update(result, gpu_time, data_time, criterion.loss, input_vec.size(0))
-                    end = time.time()
-
-                    if (i + 1) % args.print_freq == 0:
-                        print('=> output: {}'.format(output_directory))
-                        print('Train Epoch: {0} [{1}/{2}]\t'
-                              't_Data={data_time:.3f}({average.data_time:.3f}) '
-                              't_GPU={gpu_time:.3f}({average.gpu_time:.3f})\n\t'
-                              'RMSE={result.rmse:.2f}({average.rmse:.2f}) '
-                              'MAE={result.mae:.2f}({average.mae:.2f}) '
-                              'Delta1={result.delta1:.3f}({average.delta1:.3f}) '
-                              'REL={result.absrel:.3f}({average.absrel:.3f}) '
-                              'Lg10={result.lg10:.3f}({average.lg10:.3f}) '
-                              'Loss={losses[0]}/{losses[1]}/{losses[2]} '.format(
-                            epoch, i + 1, len(train_loader), data_time=data_time,
-                            gpu_time=gpu_time, result=result, average=average_meter.average(), losses=criterion.loss))
-
-
-                if t < len(input)-1:
-                    t_wct = transformations[t].float()
-                    t_wct1 = transformations[t+1].float()
-                    t_ct1_ct = t_wct #create size
-                    for bi in range(t_wct.shape[0]):
-                        t_ct1_ct[bi,:,:] = torch.matmul(iw.inverse_pose(t_wct1[bi,:,:]) , t_wct[bi,:,:])
-                    r_mat,t_vec = iw.decompose4(t_ct1_ct)
                     with torch.no_grad():
-                        rbg_projected_back, map_t1_t  = iw.homography_from(input[t+1][:,0:3,:,:].cuda(),pred[:,:,:,:],r_mat.cuda(),t_vec.cuda(),intrinsics.scale(pred.shape[2],pred.shape[3]).cuda())
-                        photometric_error = (rbg_projected_back - input_vec[:,0:3,:,:]).abs().norm(dim=1,keepdim=True)
-                        features_vec= torch.cat([pred,photometric_error,pred_features],dim=1)
+                        # scale back
+                        for cb in range(input_vec.shape[0]):
+                            pred[cb, 0, :, :] /= scale_t[cb]
+
+                        # measure accuracy and record loss
+                        result = Result()
+                        result.evaluate(pred.data, target_depth.data)
+                        average_meter.update(result, gpu_time, data_time, criterion.loss, input_vec.size(0))
+                        end = time.time()
+
+                        if (i + 1) % args.print_freq == 0:
+                            print('=> output: {}'.format(output_directory))
+                            print('Train Epoch: {0} [{1}/{2}]\t'
+                                  't_Data={data_time:.3f}({average.data_time:.3f}) '
+                                  't_GPU={gpu_time:.3f}({average.gpu_time:.3f})\n\t'
+                                  'RMSE={result.rmse:.2f}({average.rmse:.2f}) '
+                                  'MAE={result.mae:.2f}({average.mae:.2f}) '
+                                  'Delta1={result.delta1:.3f}({average.delta1:.3f}) '
+                                  'REL={result.absrel:.3f}({average.absrel:.3f}) '
+                                  'Lg10={result.lg10:.3f}({average.lg10:.3f}) '
+                                  'Loss={losses[0]}/{losses[1]}/{losses[2]} '.format(
+                                epoch, i + 1, len(train_loader), data_time=data_time,
+                                gpu_time=gpu_time, result=result, average=average_meter.average(), losses=criterion.loss))
+                else:
+                    with torch.no_grad():
+                        # scale back
+                        for cb in range(input_vec.shape[0]):
+                            pred[cb, 0, :, :] /= scale_t[cb]
+
+                #prepare next
+                if t < len(input)-1:
+                     previous_rgb = input_vec[:, 0:3, :, :]
+                     previous_depth_prediction = pred
+                #     with torch.no_grad():
+                #         t_wct = transformations[t].float()
+                #         t_wct1 = transformations[t+1].float()
+                #         t_ct1_ct = t_wct #create size
+                #         for bi in range(t_wct.shape[0]):
+                #             t_ct_ct1[bi,:,:] = torch.matmul(iw.inverse_pose(t_wct[bi,:,:]) , t_wct1[bi,:,:])
+                #         r_mat,t_vec = iw.decompose4(t_ct1_ct)
+                #         rbg_projected_back, map_t1_t  = iw.homography_from(input[t+1][:,0:3,:,:].cuda(),pred[:,:,:,:],r_mat.cuda(),t_vec.cuda(),intrinsics.scale(pred.shape[2],pred.shape[3]).cuda())
+                #         map_t1_t.floor_()
+                #         photometric_error = (rbg_projected_back - input_vec[:,0:3,:,:]).abs().norm(dim=1,keepdim=True)
+                #         depth_error = (rbg_projected_back - input_vec[:, 0:3, :, :]).abs()
+                #         features_vec= torch.cat([pred,photometric_error,pred_features],dim=1)
 
                         # def rgb2grayscale(rgb):
                         #     return rgb[0, :, :] * 0.2989 + rgb[1, :, :] * 0.587 + rgb[2, :, :] * 0.114
@@ -395,93 +357,9 @@ def train(train_loader, model, criterion, optimizer, epoch):
                         # imgplot = plt.imshow(img1.transpose([1, 2, 0]))
                         # plt.show()
 
-                        transformed_feature_vec = torch.zeros_like(features_vec)
-
-                        map_t1_t.floor_()
-
-                        for bi in  range(features_vec.shape[0]):
-                            for row in range(features_vec.shape[2]):
-                                for col in range(features_vec.shape[3]):
-                                    new_u = map_t1_t[bi, row, col, 0].long()
-                                    new_v = map_t1_t[bi, row, col, 1].long()
-                                    if new_u >= features_vec.shape[2] or new_v >= features_vec.shape[3]:
-                                        a =1
-                                        #print('estranho: {} / {}'.format(new_u,new_v))
-                                    elif new_u >= 0 and new_v >= 0:
-                                        transformed_feature_vec[bi,:,new_u,new_v] =  features_vec[bi,:,row,col]
+                        # transformed_feature_vec = torch.zeros_like(features_vec)
 
 
-                        #set features for the next frame
-                        previous_frame = transformed_feature_vec
-
-        else:
-            if 'vdepthcompnet' in args.arch:
-                input, target = input.cuda(), target.cuda()
-                target_depth = target[:, 0:1, :, :]
-                pred, valids = model(input)
-                loss = criterion(pred, valids, target_depth, epoch)
-            elif args.arch == 'sdepthcompnet':
-                target_depth = target[:, 0:1, :, :]
-                mask = build_no_grad_mask(target_depth)
-                confidence = 0.7 * mask
-                # valid_mask = ((target_depth > 0).detach())
-                # mask = torch.zeros_like(target_depth)
-                # confidence = torch.zeros_like(target_depth)
-                # mask[valid_mask] = 1
-                # confidence[valid_mask] = 0.7
-                input = torch.cat([input, confidence, mask], dim=1)  # r,g,b,d,c,m
-                input, target = input.cuda(), target.cuda()
-                target_depth = target[:, 0:1, :, :]
-
-                pred, pred_features = model(input)
-                if args.criterion == 'wl1smooth':
-                    loss = criterion(pred, target_depth, input[:, 3:4, :, :])  # .unsqueeze(1)
-                else:
-                    loss = criterion(pred, target_depth, epoch)
-
-            else:
-                input, target = input.cuda(), target.cuda()
-                target_depth = target[:, 0:1, :, :]
-                pred = model(input)
-                loss = criterion(pred, target_depth,epoch)
-
-            if loss is None or torch.isnan(loss) or torch.isinf(loss):
-                print('ignoring image, no valid pixel')
-                continue
-
-            optimizer.zero_grad()
-            loss.backward() # compute gradient and do SGD step
-            optimizer.step()
-
-            #torch.cuda.synchronize()
-            gpu_time = 0 #time.time() - end
-
-
-            for cb in range(pred.shape[0]):
-                pred[cb,:,:,:] *= scale[cb].float().cuda()
-                target_depth[cb,:,:,:] *= scale[cb].float().cuda()
-
-
-
-            # measure accuracy and record loss
-            result = Result()
-            result.evaluate(pred.data, target_depth.data)
-            average_meter.update(result, gpu_time, data_time,criterion.loss, input.size(0))
-            end = time.time()
-
-            if (i + 1) % args.print_freq == 0:
-                print('=> output: {}'.format(output_directory))
-                print('Train Epoch: {0} [{1}/{2}]\t'
-                      't_Data={data_time:.3f}({average.data_time:.3f}) '
-                      't_GPU={gpu_time:.3f}({average.gpu_time:.3f})\n\t'
-                      'RMSE={result.rmse:.2f}({average.rmse:.2f}) '
-                      'MAE={result.mae:.2f}({average.mae:.2f}) '
-                      'Delta1={result.delta1:.3f}({average.delta1:.3f}) '
-                      'REL={result.absrel:.3f}({average.absrel:.3f}) '
-                      'Lg10={result.lg10:.3f}({average.lg10:.3f}) '
-                      'Loss={losses[0]}/{losses[1]}/{losses[2]} '.format(
-                      epoch, i+1, len(train_loader), data_time=data_time,
-                      gpu_time=gpu_time, result=result, average=average_meter.average(),losses=criterion.loss))
 
     avg = average_meter.average()
     with open(train_csv, 'a') as csvfile:
