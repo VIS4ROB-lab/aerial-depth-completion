@@ -168,7 +168,10 @@ class VISIMSeqDataset(SeqMyDataloaderExt):
         attrib_np['scale'] = scale
 
         for key, value in attrib_list.items():
-            attrib_np[key] = transform(value)
+            if key not in Modality.no_transform:
+                attrib_np[key] = transform(value)
+            else:
+                attrib_np[key] = value
             if key in Modality.need_divider:  # ['gt_depth','fd','kor','kde','kgt','dor','dde', 'd3dwde','d3dwor','dvor','dvde','dvgt']:
                 attrib_np[key] = attrib_np[key]  # (attrib_np[key] - min_depth+0.01) / (max_depth - min_depth)
             elif key in Modality.image_size_weight_names:

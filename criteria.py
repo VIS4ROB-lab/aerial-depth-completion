@@ -236,6 +236,7 @@ class MaskedMSELoss(nn.Module):
 class MaskedL1Loss(nn.Module):
     def __init__(self):
         super(MaskedL1Loss, self).__init__()
+        self.loss = -1
 
     def get_extra_visualization(self):
         return None,None

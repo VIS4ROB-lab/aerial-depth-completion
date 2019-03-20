@@ -239,10 +239,12 @@ class MyDataloaderExt(data.Dataset):
         if pose == 'gt':
             assert ('gt_twc_data' in h5f), 'file {} - no pose'.format(path)
             result['t_wc'] = np.array(h5f['gt_twc_data'])
+            assert result['t_wc'].shape == (4, 4)
 
         if pose == 'slam':
             assert ('slam_twc_data' in h5f), 'file {} - no pose'.format(path)
             result['t_wc'] = np.array(h5f['slam_twc_data'])
+            assert result['t_wc'].shape == (4, 4)
 
 
 

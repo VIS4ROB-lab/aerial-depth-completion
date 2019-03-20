@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from torchvision.models import resnet
 from model_ext import init_weights,conv_bn_relu
 import inverse_warp as iw
+import matplotlib.pyplot as plt
 
 def build_no_grad_mask(depth):
     valid_mask = ((depth > 0).detach())
@@ -336,8 +337,12 @@ class LoopConfidenceNet(nn.Module):
                                  pretrained=single_dc_train_weights)
         self.singledc.eval()
 
+        self.singledc_2 = SingleDepthCompletionNet(layers=18, modality_format='rgbd',
+                                                 pretrained=single_dc_train_weights)
+
+
     def getTrainableParameters(self):
-        return self.curr_confidence_stack.parameters()
+        return list(self.curr_confidence_stack.parameters()) + list(self.singledc_2.parameters())
 
     # curr_input (d+w from slam in the current time)
     def forward(self, slam_features,previous_rgb,previous_depth_prediction,r_mat, t_vec,scale,intrinsics):
@@ -353,7 +358,7 @@ class LoopConfidenceNet(nn.Module):
         slam_features[:,3:4,:,:] = depth_prediction1
         slam_features[:, 4:5, :, :] = curr_confidence
 
-        depth_prediction2, _ = self.singledc(slam_features)
+        depth_prediction2, _ = self.singledc_2(slam_features)
 
         return depth_prediction2
 
@@ -369,6 +374,13 @@ class LoopConfidenceNet(nn.Module):
                                                               r_mat, t_vec,
                                                               intrinsics.scale(previous_rgb.shape[2], previous_rgb.shape[3]).cuda())
             photometric_error = (rgb_projected_back - previous_rgb).abs().norm(dim=1, keepdim=True)
+
+            # im = depth_error[0,0,:,:].cpu().numpy()
+            # #img1[0, :, :] = rgb2grayscale(img1) * 5
+            # # img1[1, :, :] = rgb2grayscale(img2)*5
+            # # img1[2, :, :] = 0
+            # imgplot = plt.imshow(im)
+            # plt.show()
 
             for cb in range(curr_depth.shape[0]):
                 depth_error[cb, 0, :, :] *= scale[cb]
