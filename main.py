@@ -16,6 +16,7 @@ from metrics import AverageMeter, Result
 from dataloaders.dense_to_sparse import UniformSampling, SimulatedStereo
 import criteria
 import utils
+import erfnet
 from dataloaders.dataloader_ext import Modality
 
 args = utils.parse_command()
@@ -191,6 +192,8 @@ def main():
                                              pretrained=args.pretrained)
             # model_fusion = FusionNet(layers=18, modality_format=g_modality.format,
             #                                     pretrained=args.pretrained)
+        elif args.arch == 'erfdepthcompnet':
+            model = erfnet.ERFNetDepthCompletionNet(modality_format=g_modality.format)
 
 
 
