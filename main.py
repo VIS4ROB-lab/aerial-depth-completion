@@ -6,6 +6,7 @@ import math
 import torch
 import torch.backends.cudnn as cudnn
 import torch.optim
+import GPUtil
 from torchsummary import summary
 cudnn.benchmark = True
 
@@ -358,6 +359,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
                   'Loss={losses[0]}/{losses[1]}/{losses[2]} '.format(
                   epoch, i+1, len(train_loader), data_time=data_time,
                   gpu_time=gpu_time, result=result, average=average_meter.average(),losses=criterion.loss))
+            GPUtil.showUtilization(all=True)
 
     avg = average_meter.average()
     with open(train_csv, 'a') as csvfile:
