@@ -13,6 +13,8 @@ cudnn.benchmark = True
 
 from models import ResNet
 from model_ext import DepthCompletionNet,DepthWeightCompletionNet,ValidDepthCompletionNet
+import guided_enc_dec
+import guided_ms_net
 from model_dual import SingleDepthCompletionNet
 from metrics import AverageMeter, Result
 from dataloaders.dense_to_sparse import UniformSampling, SimulatedStereo
@@ -215,15 +217,24 @@ def main():
             model = erfnet.ERFNetSingleDecNet(modality_format=g_modality.format,use_normal=True)
         elif args.arch == 'nderfdepthcompnet':
             model = erfnet.ERFNetDualDecNet(modality_format=g_modality.format)
+        elif args.arch == 'gms_depthcompnet':
+            model = guided_ms_net.CNN()
+        elif args.arch == 'ged_depthcompnet':
+            model = guided_enc_dec.CNN()
 
         print("=> model created. GPUS:{}".format(torch.cuda.device_count()))
-        optimizer = torch.optim.SGD(model.parameters(), args.lr, \
-            momentum=args.momentum, weight_decay=args.weight_decay)
+        if args.optimizer == 'sgd':
+            optimizer = torch.optim.SGD(model.parameters(), args.lr, \
+                                        momentum=args.momentum, weight_decay=args.weight_decay)
+        elif args.optimizer == 'adam':
+            optimizer = torch.optim.Adam(model.parameters(), args.lr)
+        else:
+            raise RuntimeError ('unknow optimizer "{}"'.format(args.optimizer))
 
         if torch.cuda.device_count() > 1 :
             model = torch.nn.DataParallel(model) # for multi-gpu training
         model = model.cuda()
-        summary(model,(4,240, 320))
+        summary(model,(4,240,320))
 
     # define loss function (criterion) and optimizer
     if args.criterion == 'l2':

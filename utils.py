@@ -14,9 +14,10 @@ epsilon= np.finfo(float).eps
 cmap = plt.cm.viridis
 
 def parse_command():
-    model_names = ['resnet18', 'resnet34', 'resnet50','depthcompnet18','depthcompnet34','depthcompnet50','sdepthcompnet18','vdepthcompnet18','vdepthcompnet34','vdepthcompnet50','weightcompnet18','weightcompnet34','weightcompnet50','efsdepthcompnet18','csdepthcompnet18','erfdepthcompnet','nserfdepthcompnet','nderfdepthcompnet']
+    model_names = ['resnet18', 'resnet34', 'resnet50','depthcompnet18','depthcompnet34','depthcompnet50','sdepthcompnet18','vdepthcompnet18','vdepthcompnet34','vdepthcompnet50','weightcompnet18','weightcompnet34','weightcompnet50','efsdepthcompnet18','csdepthcompnet18','erfdepthcompnet','nserfdepthcompnet','nderfdepthcompnet','gms_depthcompnet','ged_depthcompnet']
     loss_names = ['l1', 'l2','l2gn','l2nv','l1smooth','wl1smooth','l2n_dual']
     data_names = ['nyudepthv2', 'kitti', 'visim','visim_seq']
+    opt_names = ['sgd', 'adam']
     depth_weight_head_type_names = ['CBR','ResBlock1','JOIN']
     from dataloaders.dense_to_sparse import UniformSampling, SimulatedStereo
     sparsifier_names = [x.name for x in [UniformSampling, SimulatedStereo]]
@@ -80,6 +81,9 @@ def parse_command():
                         help='evaluate model on validation set')
     parser.add_argument('--no-pretrain', dest='pretrained', action='store_false',
                         help='not to use ImageNet pre-trained weights')
+    parser.add_argument('-o', '--optimizer', metavar='OPTIMIZER', default='sgd', choices=opt_names,
+                        help='Optimizer: ' + ' | '.join(opt_names) + ' (default: SGD)')
+
     #parser.set_defaults(pretrained=True)
     args = parser.parse_args()
 
