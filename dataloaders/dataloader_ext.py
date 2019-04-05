@@ -155,7 +155,7 @@ class MyDataloaderExt(data.Dataset):
 
     color_jitter = transforms.ColorJitter(0.4, 0.4, 0.4)
 
-    def __init__(self, root, type, sparsifier=None, modality='rgb',base_filter=None):
+    def __init__(self, root, type, sparsifier=None,max_gt_depth=math.inf, modality='rgb',base_filter=None):
         
         imgs = []
         if type == 'train':
@@ -191,6 +191,7 @@ class MyDataloaderExt(data.Dataset):
 
         self.sparsifier = sparsifier
         self.modality = Modality(modality)
+        self.max_gt_depth = max_gt_depth
 
 
 
@@ -271,7 +272,11 @@ class MyDataloaderExt(data.Dataset):
                 result['normal_y'] = normal_rescaled[1, :, :]
                 result['normal_z'] = normal_rescaled[2, :, :]
         elif 'depth' in h5f:
-            result['gt_depth'] = depth = np.array(h5f['depth'])
+            depth = np.array(h5f['depth'])
+            if not math.isinf(self.max_gt_depth):
+                mask_max = depth >  self.max_gt_depth
+                depth[mask_max] = 0
+            result['gt_depth'] = depth
 
         if pose == 'gt':
             assert ('gt_twc_data' in h5f), 'file {} - no pose'.format(path)

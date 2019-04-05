@@ -3,6 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
+g_eps = torch.tensor([np.finfo(np.float).eps]).cuda()
+
 class Sobel(nn.Module):
     def __init__(self):
         super(Sobel, self).__init__()
@@ -23,6 +25,51 @@ class Sobel(nn.Module):
 
         return out
 
+class NormalCalc(nn.Module):
+    def __init__(self):
+        super(NormalCalc, self).__init__()
+        self.edge_conv = nn.Conv2d(1, 2, kernel_size=3, stride=1, padding=1, bias=False)
+        edge_kx = np.array([[1, 0, -1], [2, 0, -2], [1, 0, -1]])
+        edge_ky = np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])
+        edge_k = np.stack((edge_kx, edge_ky))
+
+        edge_k = torch.from_numpy(edge_k).float().view(2, 1, 3, 3)
+        self.edge_conv.weight = nn.Parameter(edge_k)
+
+        for param in self.parameters():
+            param.requires_grad = False
+
+    def forward(self, x):
+        out = self.edge_conv(x) #scale back to real values
+        out = out.contiguous().view(-1, 2, x.size(2), x.size(3))
+        depth_grad_dx = out[:, 0, :, :].contiguous().view_as(x)
+        depth_grad_dy = out[:, 1, :, :].contiguous().view_as(x)
+        ones = torch.ones(x.size(0), 1, x.size(2), x.size(3)).cuda().float() / 16.0
+        depth_normal = torch.cat((-depth_grad_dx / 8, -depth_grad_dy / 8, ones), 1)
+        depth_normal = F.normalize(depth_normal, p=2, dim=1)
+        return depth_normal
+
+
+
+class NNBorder(nn.Module):
+    def __init__(self):
+        super(NNBorder, self).__init__()
+        self.edge_conv = nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=1, bias=False)
+        edge_kb = np.array([[1, 1, 1], [1, 1, 1], [1, 1, 1]])
+
+        edge_k = torch.from_numpy(edge_kb).float().view(1, 1, 3, 3)
+        self.edge_conv.weight = nn.Parameter(edge_k)
+
+        for param in self.parameters():
+            param.requires_grad = False
+
+    def forward(self, x):
+        mask = (x.detach() > g_eps).float()
+        out = self.edge_conv(mask)
+        out = (out >= 8.9999).detach()
+        out = out.contiguous().view(-1, 1, x.size(2), x.size(3))
+
+        return out
 
 # get_gradient = Sobel()
 #
@@ -67,6 +114,68 @@ class Sobel(nn.Module):
 #
 #         return 1 - torch.mean(prod / (fake_norm * real_norm))
 
+# class NormalLoss(nn.Module):
+#     def __init__(self):
+#         super(NormalLoss, self).__init__()
+#
+#     def forward(self, grad_fake, grad_real):
+#         prod = (grad_fake[:, :, None, :] @ grad_real[:, :, :, None]).squeeze(-1).squeeze(-1)
+#         fake_norm = torch.sqrt(torch.sum(grad_fake ** 2, dim=-1))
+#         real_norm = torch.sqrt(torch.sum(grad_real ** 2, dim=-1))
+#
+#         return 1 - torch.mean(prod / (fake_norm * real_norm))
+
+
+class MaskedNormalLoss(nn.Module):
+    def __init__(self,use_special_channel=True):
+        super(MaskedNormalLoss, self).__init__()
+        self.cos = nn.CosineSimilarity(dim=1, eps=0)
+        self.get_normal = NormalCalc()
+        self.use_special_channel = use_special_channel
+
+    def forward(self, pred, target_depth, mask_less_border):
+
+        target_normal = self.get_normal(target_depth)
+        target_normal = target_normal
+
+        if self.use_special_channel:
+            predicted = pred[:,1:4,:,:]
+        else:
+            predicted = self.get_normal(pred[:, 0:1, :, :])
+
+        return torch.abs(1 - self.cos(predicted, target_normal)[mask_less_border[:,0,:,:]]).mean()
+
+
+class MaskedL2NormalLoss(nn.Module):
+
+    def __init__(self):
+        super(MaskedL2NormalLoss, self).__init__()
+        self.less_border_mask = NNBorder()
+        self.mse_loss = torch.nn.MSELoss()
+        self.normal_loss = MaskedNormalLoss()
+        self.normal_loss_weight = 10.0
+        self.depth_loss_weight = 1.0
+
+    def get_extra_visualization(self):
+        return None,None
+
+    def forward(self, pred, target_depth,epoch=None):
+        mask_less_border = self.less_border_mask(target_depth)
+        mask_less_border_float = mask_less_border.float()
+        num_valids = mask_less_border.sum()
+        if num_valids < 10:
+            return None
+
+
+        loss_normal = self.normal_loss(pred,target_depth,mask_less_border)*self.normal_loss_weight
+        loss_depth = self.mse_loss(pred[:,0:1,:,:]*mask_less_border_float,target_depth*mask_less_border_float)*self.depth_loss_weight
+
+        self.loss = [loss_depth.cpu().detach().numpy() , loss_normal.cpu().detach().numpy() , np.array(0)]#(loss_dx + loss_dy).cpu().detach().numpy()
+
+        return loss_depth + loss_normal
+
+
+
 class MaskedL2GradNormalLoss(nn.Module):
 
     def __init__(self):
@@ -96,7 +205,7 @@ class MaskedL2GradNormalLoss(nn.Module):
         depth_grad = self.get_gradient(target_depth)
         output_grad = self.get_gradient(pred)
 
-        loss_depth = self.mse_loss(pred,target_depth) #torch.log(torch.abs(diff) + 0.5).mean()
+        loss_depth = torch.abs(diff).mean() # self.mse_loss(pred,target_depth) #
 
         depth_grad_dx = depth_grad[:, 0, :, :].contiguous().view_as(target_depth)
         depth_grad_dy = depth_grad[:, 1, :, :].contiguous().view_as(target_depth)
@@ -113,7 +222,7 @@ class MaskedL2GradNormalLoss(nn.Module):
 
         loss_dx = torch.log(torch.abs((output_grad_dx - depth_grad_dx)[valid_mask]) + 0.5).mean()
         loss_dy = torch.log(torch.abs((output_grad_dy - depth_grad_dy)[valid_mask]) + 0.5).mean()
-        loss_normal = 100* torch.abs(1 - self.cos(self.output_normal, self.depth_normal)[valid_mask[:,0,:,:]]).mean()
+        loss_normal = 10* torch.abs(1 - self.cos(self.output_normal, self.depth_normal)[valid_mask[:,0,:,:]]).mean()
 
         self.loss = [loss_depth.cpu().detach().numpy() , loss_normal.cpu().detach().numpy() , np.array(0)]#(loss_dx + loss_dy).cpu().detach().numpy()
 

@@ -7,14 +7,15 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from matplotlib.figure import Figure
 from scipy import ndimage
 from PIL import Image
+import math
 import cv2
 
 epsilon= np.finfo(float).eps
 cmap = plt.cm.viridis
 
 def parse_command():
-    model_names = ['resnet18', 'resnet34', 'resnet50','depthcompnet18','depthcompnet34','depthcompnet50','sdepthcompnet18','vdepthcompnet18','vdepthcompnet34','vdepthcompnet50','weightcompnet18','weightcompnet34','weightcompnet50','efsdepthcompnet18','csdepthcompnet18','erfdepthcompnet']
-    loss_names = ['l1', 'l2','l2gn','l2nv','l1smooth','wl1smooth']
+    model_names = ['resnet18', 'resnet34', 'resnet50','depthcompnet18','depthcompnet34','depthcompnet50','sdepthcompnet18','vdepthcompnet18','vdepthcompnet34','vdepthcompnet50','weightcompnet18','weightcompnet34','weightcompnet50','efsdepthcompnet18','csdepthcompnet18','erfdepthcompnet','nserfdepthcompnet','nderfdepthcompnet']
+    loss_names = ['l1', 'l2','l2gn','l2nv','l1smooth','wl1smooth','l2n_dual']
     data_names = ['nyudepthv2', 'kitti', 'visim','visim_seq']
     depth_weight_head_type_names = ['CBR','ResBlock1','JOIN']
     from dataloaders.dense_to_sparse import UniformSampling, SimulatedStereo
@@ -42,6 +43,8 @@ def parse_command():
                         help='number of sparse depth samples (default: 0)')
     parser.add_argument('--max-depth', default=-1.0, type=float, metavar='D',
                         help='cut-off depth of sparsifier, negative values means infinity (default: inf [m])')
+    parser.add_argument('--max-gt-depth', default=math.inf, type=float, metavar='D',
+                        help='cut-off depth of ground truth, negative values means infinity (default: inf [m])')
     parser.add_argument('--depth-divider', default=1.0, type=float, metavar='D',
                         help='Normalization factor (default: 1.0 [m])')
     parser.add_argument('--sparsifier', metavar='SPARSIFIER', default=UniformSampling.name, choices=sparsifier_names,
@@ -52,6 +55,8 @@ def parse_command():
                         help='number of data loading workers (default: 10)')
     parser.add_argument('--epochs', default=15, type=int, metavar='N',
                         help='number of total epochs to run (default: 15)')
+    parser.add_argument('--val-images', default=40, type=int, metavar='N',
+                        help='number of images in the validation image (default: 40)')
     parser.add_argument('-c', '--criterion', metavar='LOSS', default='l1', choices=loss_names,
                         help='loss function: ' + ' | '.join(loss_names) + ' (default: l1)')
     parser.add_argument('-b', '--batch-size', default=8, type=int, help='mini-batch size (default: 8)')
@@ -190,8 +195,12 @@ def merge_into_row_with_gt(input, depth_input, depth_target, depth_pred,normal_t
     else:
         valid_mask_cpu = np.zeros_like(depth_input_cpu)
 
-
-    mask = np.logical_and(depth_input_cpu > 10e-5 ,  depth_target_cpu > 10e-5)
+    input_depth_mask = depth_input_cpu > 10e-5
+    target_depth_mask = depth_target_cpu > 10e-5
+    if input_depth_mask.sum() > 0:
+        mask = np.logical_and( input_depth_mask,  target_depth_mask)
+    else:
+        mask = target_depth_mask
 
     d_min = min(np.min(depth_input_cpu[mask]), np.min(depth_target_cpu[mask]), np.min(depth_pred_cpu))
     d_max = max(np.max(depth_input_cpu), np.max(depth_target_cpu), np.max(depth_pred_cpu))

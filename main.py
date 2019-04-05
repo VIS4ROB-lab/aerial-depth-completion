@@ -6,7 +6,7 @@ import math
 import torch
 import torch.backends.cudnn as cudnn
 import torch.optim
-import GPUtil
+import GPUtilext
 from torchsummary import summary
 cudnn.benchmark = True
 
@@ -68,9 +68,9 @@ def create_data_loaders(args):
         from dataloaders.visim_dataloader import VISIMDataset
         if not args.evaluate:
             train_dataset = VISIMDataset(traindir, type='train',
-                modality=args.modality, sparsifier=sparsifier,depth_divider=args.depth_divider, arch=args.arch)
+                modality=args.modality, sparsifier=sparsifier,depth_divider=args.depth_divider, arch=args.arch,max_gt_depth=args.max_gt_depth)
         val_dataset = VISIMDataset(valdir, type='val',
-            modality=args.modality, sparsifier=sparsifier,depth_divider=args.depth_divider, arch=args.arch)
+            modality=args.modality, sparsifier=sparsifier,depth_divider=args.depth_divider, arch=args.arch,max_gt_depth=args.max_gt_depth)
 
     else:
         raise RuntimeError('Dataset not found.' +
@@ -194,7 +194,11 @@ def main():
             # model_fusion = FusionNet(layers=18, modality_format=g_modality.format,
             #                                     pretrained=args.pretrained)
         elif args.arch == 'erfdepthcompnet':
-            model = erfnet.ERFNetDepthCompletionNet(modality_format=g_modality.format)
+            model = erfnet.ERFNetSingleDecNet(modality_format=g_modality.format)
+        elif args.arch == 'nserfdepthcompnet':
+            model = erfnet.ERFNetSingleDecNet(modality_format=g_modality.format,use_normal=True)
+        elif args.arch == 'nderfdepthcompnet':
+            model = erfnet.ERFNetDualDecNet(modality_format=g_modality.format)
 
 
 
@@ -220,6 +224,9 @@ def main():
         criterion = criteria.MaskedL1LossSmoothess().cuda()
     elif args.criterion == 'wl1smooth':
         criterion = criteria.MaskedWL1LossSmoothess().cuda()
+    elif args.criterion == 'l2n_dual':
+        criterion = criteria.MaskedL2NormalLoss().cuda()
+
 
 
 
@@ -333,16 +340,13 @@ def train(train_loader, model, criterion, optimizer, epoch):
         #torch.cuda.synchronize()
         gpu_time = 0 #time.time() - end
 
-
         for cb in range(pred.shape[0]):
             pred[cb,:,:,:] *= scale[cb]
             target_depth[cb,:,:,:] *= scale[cb]
 
-
-
         # measure accuracy and record loss
         result = Result()
-        result.evaluate(pred.data, target_depth.data)
+        result.evaluate(pred[:,0:1,:,:].data, target_depth.data)
         average_meter.update(result, gpu_time, data_time,criterion.loss, input.size(0))
         end = time.time()
 
@@ -359,7 +363,15 @@ def train(train_loader, model, criterion, optimizer, epoch):
                   'Loss={losses[0]}/{losses[1]}/{losses[2]} '.format(
                   epoch, i+1, len(train_loader), data_time=data_time,
                   gpu_time=gpu_time, result=result, average=average_meter.average(),losses=criterion.loss))
-            GPUtil.showUtilization(all=True)
+
+            attrlist = [[
+                {'attr': 'id', 'name': 'ID'},
+                {'attr': 'load', 'name': 'GPU util.', 'suffix': '%', 'transform': lambda x: x * 100, 'precision': 0},
+                {'attr': 'memoryUtil', 'name': 'Memory util.', 'suffix': '%', 'transform': lambda x: x * 100,'precision': 0}],
+             [{'attr': 'memoryTotal', 'name': 'Memory total', 'suffix': 'MB', 'precision': 0},
+              {'attr': 'memoryUsed', 'name': 'Memory used', 'suffix': 'MB', 'precision': 0},
+              {'attr': 'memoryFree', 'name': 'Memory free', 'suffix': 'MB', 'precision': 0}]]
+            GPUtilext.showUtilization(attrList=attrlist)
 
     avg = average_meter.average()
     with open(train_csv, 'a') as csvfile:
@@ -368,19 +380,17 @@ def train(train_loader, model, criterion, optimizer, epoch):
             'mae': avg.mae, 'delta1': avg.delta1, 'delta2': avg.delta2, 'delta3': avg.delta3,
             'gpu_time': avg.gpu_time, 'data_time': avg.data_time,'loss0': avg.loss0,'loss1': avg.loss1,'loss2': avg.loss2})
 
-
-
 def validate(val_loader, model, epoch, write_to_file=True):
     average_meter = AverageMeter()
     model.eval() # switch to evaluate mode
     normal_eval = criteria.MaskedL2GradNormalLoss().cuda().eval()
     end = time.time()
-    num_of_images = 40
+    num_of_images = args.val_images
     sample_step = math.floor(len(val_loader) / float(num_of_images))
     for i, (input, target,scale) in enumerate(val_loader):
         input, target = input.cuda(), target.cuda()
-        #torch.cuda.synchronize()
-        data_time = 0 #time.time() - end
+        torch.cuda.synchronize()
+        data_time = time.time() - end
 
         valids = None
 
@@ -400,9 +410,11 @@ def validate(val_loader, model, epoch, write_to_file=True):
                 input = input.cuda()
                 pred,_ = model(input)
             else:
-                pred = model(input)
-            #torch.cuda.synchronize()
-            gpu_time = 0 #time.time() - end
+                full_prediction =  model(input)
+                pred = full_prediction[:,0:1,:,:]
+
+            torch.cuda.synchronize()
+            gpu_time = time.time() - end
 
             target_depth = target[:, 0:1, :, :]
             #target_normal = target[:, 1:4, :, :]
@@ -413,6 +425,8 @@ def validate(val_loader, model, epoch, write_to_file=True):
 
             normal_eval(pred, target_depth)
             pred_normal, target_normal = normal_eval.get_extra_visualization()
+            if full_prediction.shape[1] == 4:
+                pred_normal = full_prediction[:,1:4,:,:]
 
         # measure accuracy and record loss
         result = Result()

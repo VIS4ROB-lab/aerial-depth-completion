@@ -152,6 +152,8 @@ def main():
 
         if args.arch == 'csdepthcompnet18':
             model = LoopConfidenceNet(single_dc_train_weights=args.pretrained)
+        else:
+            raise RuntimeError('unknown architecture')
 
         print("=> model created. GPUS:{}".format(torch.cuda.device_count()))
         optimizer = torch.optim.SGD(model.getTrainableParameters(), args.lr, \

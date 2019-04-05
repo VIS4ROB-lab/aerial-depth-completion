@@ -151,15 +151,46 @@ class Net(nn.Module):
             output = self.encoder(input)    #predict=False by default
             return self.decoder.forward(output)
 
-class ERFNetDepthCompletionNet(nn.Module):
+class ERFNetSingleDecNet(nn.Module):
+
+    def __init__(self, modality_format='rgbd',use_normal=False):
+        super().__init__()
+        self.modality = modality_format
+
+        if modality_format == 'rgbd':
+            input_size = 4
+        else:
+            input_size = 3
+
+        self.encoder = Encoder(input_size=input_size)
+        if use_normal:
+            output_size = 4
+        else:
+            output_size = 1
+
+        self.decoder = Decoder(output_size)
+
+    def forward(self, input):
+        output = self.encoder(input)
+        return self.decoder(output)
+
+class ERFNetDualDecNet(nn.Module):
 
     def __init__(self, modality_format='rgbd'):
         super().__init__()
         self.modality = modality_format
 
-        self.encoder = Encoder()
-        self.decoder = Decoder(1)
+        if modality_format == 'rgbd':
+            input_size = 4
+        else:
+            input_size = 3
+
+        self.encoder = Encoder(input_size=input_size)
+        self.decoder_normal = Decoder(3)
+        self.decoder_depth = Decoder(1)
 
     def forward(self, input):
-        output = self.encoder(input)
-        return self.decoder(output)
+        code = self.encoder(input)
+        output_normal = self.decoder_normal(code)
+        output_depth = self.decoder_depth(code)
+        return torch.cat([output_depth,output_normal],dim=1)

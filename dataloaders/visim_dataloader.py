@@ -1,12 +1,13 @@
 import numpy as np
+import math
 import dataloaders.transforms as transforms
 from dataloaders.dataloader_ext import MyDataloaderExt,Modality,SeqMyDataloaderExt
 
 #iheight, iwidth = 480, 752 # raw image size
 
 class VISIMDataset(MyDataloaderExt):
-    def __init__(self, root, type, sparsifier=None, modality='rgb', arch='resnet18',depth_divider=1.0):
-        super(VISIMDataset, self).__init__(root, type, sparsifier, modality)
+    def __init__(self, root, type, sparsifier=None, modality='rgb', arch='resnet18',depth_divider=1.0,max_gt_depth=math.inf):
+        super(VISIMDataset, self).__init__(root, type, sparsifier,max_gt_depth, modality)
         self.depth_divider = depth_divider
         self.arch = arch
 
@@ -42,10 +43,17 @@ class VISIMDataset(MyDataloaderExt):
 
         attrib_np = dict()
 
-        minmax_image = transform(attrib_list['fd'])
-        max_depth = max(minmax_image.max(),1.0)
+        if 'fd' in attrib_list:
+            minmax_image = transform(attrib_list['fd'])
+            max_depth = max(minmax_image.max(),1.0)
+        if 'kor' in attrib_list:
+            minmax_image = transform(attrib_list['kor'])
+            max_depth = max(minmax_image.max(),1.0)
+        else:
+            max_depth = 50
+
         scale = 10.0 / max_depth  # 10 is arbitrary. the network only converge in a especific range
-        attrib_np['scale'] = 1.0/scale
+        attrib_np['scale'] = 1.0 / scale
 
         for key, value in attrib_list.items():
             attrib_np[key] = transform(value)
@@ -76,11 +84,17 @@ class VISIMDataset(MyDataloaderExt):
 
         attrib_np = dict()
 
-        minmax_image = transform(attrib_list['fd'])
-        max_depth = max(minmax_image.max(),1.0)
+        if 'fd' in attrib_list:
+            minmax_image = transform(attrib_list['fd'])
+            max_depth = max(minmax_image.max(), 1.0)
+        if 'kor' in attrib_list:
+            minmax_image = transform(attrib_list['kor'])
+            max_depth = max(minmax_image.max(), 1.0)
+        else:
+            max_depth = 50
 
-        scale = 10.0 / max_depth #10 is arbitrary. the network only converge in a especific range
-        attrib_np['scale'] = 1.0/scale
+        scale = 10.0 / max_depth  # 10 is arbitrary. the network only converge in a especific range
+        attrib_np['scale'] = 1.0 / scale
 
         for key, value in attrib_list.items():
             attrib_np[key] = transform(value)
@@ -124,10 +138,17 @@ class VISIMSeqDataset(SeqMyDataloaderExt):
 
         attrib_np = dict()
 
-        minmax_image = transform(attrib_list['fd'])
-        max_depth = max(minmax_image.max(), 1.0)
+        if 'fd' in attrib_list:
+            minmax_image = transform(attrib_list['fd'])
+            max_depth = max(minmax_image.max(), 1.0)
+        if 'kor' in attrib_list:
+            minmax_image = transform(attrib_list['kor'])
+            max_depth = max(minmax_image.max(), 1.0)
+        else:
+            max_depth = 50
+
         scale = 10.0 / max_depth  # 10 is arbitrary. the network only converge in a especific range
-        attrib_np['scale'] = scale
+        attrib_np['scale'] = 1.0 / scale
 
         for key, value in attrib_list.items():
             if key not in Modality.no_transform:
@@ -161,11 +182,17 @@ class VISIMSeqDataset(SeqMyDataloaderExt):
 
         attrib_np = dict()
 
-        minmax_image = transform(attrib_list['fd'])
-        max_depth = max(minmax_image.max(), 1.0)
+        if 'fd' in attrib_list:
+            minmax_image = transform(attrib_list['fd'])
+            max_depth = max(minmax_image.max(), 1.0)
+        if 'kor' in attrib_list:
+            minmax_image = transform(attrib_list['kor'])
+            max_depth = max(minmax_image.max(), 1.0)
+        else:
+            max_depth = 50
 
         scale = 10.0 / max_depth  # 10 is arbitrary. the network only converge in a especific range
-        attrib_np['scale'] = scale
+        attrib_np['scale'] = 1.0 / scale
 
         for key, value in attrib_list.items():
             if key not in Modality.no_transform:
