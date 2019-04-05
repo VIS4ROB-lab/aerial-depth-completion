@@ -8,6 +8,7 @@ import torch.backends.cudnn as cudnn
 import torch.optim
 import GPUtilext
 from torchsummary import summary
+import glob
 cudnn.benchmark = True
 
 from models import ResNet
@@ -114,6 +115,21 @@ def main():
 
     # optionally resume from a checkpoint
     elif args.resume:
+        if args.resume == 'continue' or args.resume == 'best':
+            if args.resume == 'continue':
+                pattern = 'checkpoint-*.pth.tar'
+            if args.resume == 'best':
+                pattern = 'model_best.pth.tar'
+
+            filename_regex = os.path.join(output_directory,pattern)
+            possibilities = glob.glob(filename_regex)
+            if len(possibilities) > 0 :
+                possibilities.sort(reverse=True)
+                args.resume = possibilities[0]
+            else:
+                raise RuntimeError("No checkpoint found at '{}'".format(output_directory))
+
+
         assert os.path.isfile(args.resume), \
             "=> no checkpoint found at '{}'".format(args.resume)
         print("=> loading checkpoint '{}'".format(args.resume))
@@ -200,8 +216,6 @@ def main():
         elif args.arch == 'nderfdepthcompnet':
             model = erfnet.ERFNetDualDecNet(modality_format=g_modality.format)
 
-
-
         print("=> model created. GPUS:{}".format(torch.cuda.device_count()))
         optimizer = torch.optim.SGD(model.parameters(), args.lr, \
             momentum=args.momentum, weight_decay=args.weight_decay)
@@ -209,7 +223,7 @@ def main():
         if torch.cuda.device_count() > 1 :
             model = torch.nn.DataParallel(model) # for multi-gpu training
         model = model.cuda()
-        # summary(model,(4,240, 320))
+        summary(model,(4,240, 320))
 
     # define loss function (criterion) and optimizer
     if args.criterion == 'l2':
@@ -481,9 +495,8 @@ def validate(val_loader, model, epoch, write_to_file=True):
                   'MAE={result.mae:.2f}({average.mae:.2f}) '
                   'Delta1={result.delta1:.3f}({average.delta1:.3f}) '
                   'REL={result.absrel:.3f}({average.absrel:.3f}) '
-                  'Lg10={result.lg10:.3f}({average.lg10:.3f}) '
-                  'Loss={loss0}/{loss1}/{loss2} '.format(
-                   i+1, len(val_loader), gpu_time=gpu_time, result=result, average=average_meter.average(),loss0=normal_eval.loss[0],loss1=normal_eval.loss[1],loss2=normal_eval.loss[2]))
+                  'Lg10={result.lg10:.3f}({average.lg10:.3f}) '.format(
+                   i+1, len(val_loader), gpu_time=gpu_time, result=result, average=average_meter.average()))
 
     avg = average_meter.average()
 
