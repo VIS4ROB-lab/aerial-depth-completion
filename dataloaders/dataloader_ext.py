@@ -19,21 +19,21 @@ IMG_EXTENSIONS = ['.h5',]
 def is_image_file(filename):
     return any(filename.endswith(extension) for extension in IMG_EXTENSIONS)
 
-def load_files_list(path,base_filter):
+def load_files_list(path, base_filter):
     images = []    
     with open(path, 'r') as csvfile:
         reader = csv.reader(csvfile, delimiter=',')
         folder = os.path.dirname(path)
         for row in reader:            
             path = os.path.join(folder, row[1])
-            if base_filter is None or base_filter in path and 'ds-corvin' not in path:
+            if base_filter is None or base_filter in path:
                 item = (path,row[0])
                 images.append(item)
     return images
 
 
-def find_classes(dir):
-    classes = [d for d in os.listdir(dir) if os.path.isdir(os.path.join(dir, d))]
+def find_classes(dir, base_filter=None):
+    classes = [d for d in os.listdir(dir) if os.path.isdir(os.path.join(dir, d)) and (base_filter is None or base_filter in d)]
     classes.sort()
     class_to_idx = {classes[i]: i for i in range(len(classes))}
     return classes, class_to_idx
@@ -42,6 +42,8 @@ def make_dataset(dir, class_to_idx):
     images = []
     dir = os.path.expanduser(dir)
     for target in sorted(os.listdir(dir)):
+        if target not in class_to_idx:
+            continue
         d = os.path.join(dir, target)
         if not os.path.isdir(d):
             continue
@@ -52,6 +54,54 @@ def make_dataset(dir, class_to_idx):
                     item = (path, class_to_idx[target])
                     images.append(item)
     return images
+
+def load_class_dataset(dir,class_):
+    images = []
+    dir = os.path.expanduser(dir)
+    target = class_
+    d = os.path.join(dir, target)
+    assert( os.path.isdir(d)), 'path is not a folder'
+
+    for root, _, fnames in sorted(os.walk(d)):
+        for fname in sorted(fnames):
+            if is_image_file(fname):
+                path = os.path.join(root, fname)
+                item = path
+                images.append(item)
+    return images
+#
+# def load_extra_datasets(data_folder,type, image_list):
+#
+#     extra_folder = os.path.join(data_folder,'extra')
+#     extra_paths = [None]* len(image_list)
+#     extra_count = 0
+#     for i in range(len(image_list)):
+#         curr_path,_ = image_list[i]
+#         curr_relpath_in_extra = os.path.relpath(curr_path,os.path.join(data_folder,type))
+#         curr_abspath_in_extra = os.path.join(extra_folder,curr_relpath_in_extra)
+#
+#         if os.path.exists(curr_abspath_in_extra):
+#             extra_count = extra_count + 1
+#             extra_paths[i] = curr_abspath_in_extra
+#
+#     return extra_paths, extra_count
+
+def load_class_extras(data_folder, type, image_list):
+
+    extra_folder = os.path.join(data_folder,'extra')
+    extra_paths = []
+    img_paths = []
+
+    for i in range(len(image_list)):
+        curr_path = image_list[i]
+        curr_relpath_in_extra = os.path.relpath(curr_path,os.path.join(data_folder,type))
+        curr_abspath_in_extra = os.path.join(extra_folder,curr_relpath_in_extra)
+
+        if os.path.exists(curr_abspath_in_extra):
+            extra_paths.append(curr_abspath_in_extra)
+            img_paths.append(curr_path)
+
+    return extra_paths, img_paths
 
 
 def rgb2grayscale(rgb):
@@ -155,39 +205,34 @@ class MyDataloaderExt(data.Dataset):
 
     color_jitter = transforms.ColorJitter(0.4, 0.4, 0.4)
 
-    def __init__(self, root, type, sparsifier=None,max_gt_depth=math.inf, modality='rgb',base_filter=None):
+    def __init__(self, root, type, sparsifier=None,max_gt_depth=math.inf, modality='rgb'):
         
         imgs = []
+
         if type == 'train':
             self.transform = self.train_transform
-            if os.path.exists(os.path.join(root,'train.txt')):
-                imgs = load_files_list(os.path.join(root,'train.txt'),base_filter)
-            else:
-                dataset_folder = os.path.join(root, 'train')
-                classes, class_to_idx = find_classes(dataset_folder)
-                imgs = make_dataset(dataset_folder, class_to_idx)
-                self.classes = classes
-                self.class_to_idx = class_to_idx
         elif type == 'val':
             self.transform = self.val_transform
-            if os.path.exists(os.path.join(root, 'val.txt')):
-                imgs = load_files_list(os.path.join(root,'val.txt'),base_filter)
-            else:
-                dataset_folder = os.path.join(root, 'val')
-                classes, class_to_idx = find_classes(dataset_folder)
-                imgs = make_dataset(dataset_folder, class_to_idx)
-                self.classes = classes
-                self.class_to_idx = class_to_idx
         else:
-            raise (RuntimeError("Invalid dataset type: " + type + "\n"
-                                "Supported dataset types are: train, val"))
+            raise RuntimeError('invalid type of dataset')
+
+        if os.path.exists(os.path.join(root,'{}.txt'.format(type))):
+            imgs = load_files_list(os.path.join(root,'{}.txt'.format(type)))
+        else:
+            dataset_folder = os.path.join(root, type)
+            classes, class_to_idx = find_classes(dataset_folder)
+            imgs = make_dataset(dataset_folder, class_to_idx)
+            self.classes = classes
+            self.class_to_idx = class_to_idx
+
 
         assert len(imgs)>0, "Found 0 images in subfolders of: " + root + "\n"
         print("Found {} images in {} folder.".format(len(imgs), type))
         self.root = root
         self.imgs = imgs
-#        self.classes = classes
-#        self.class_to_idx = class_to_idx
+        self.extra_ds = None
+        #self.classes = classes
+        #self.class_to_idx = class_to_idx
 
         self.sparsifier = sparsifier
         self.modality = Modality(modality)
@@ -254,10 +299,13 @@ class MyDataloaderExt(data.Dataset):
  #   def h5_preprocess(self,index):
 
 #pose = none | gt | slam
-    def h5_loader_general(self,index,type,pose='none'):
+    def h5_loader_general(self,img_path,extra_path,type,pose='none'):
         result = dict()
-        path, target = self.imgs[index]
-        h5f = h5py.File(path, "r")
+        #path, target = self.imgs[index]
+        h5f = h5py.File(img_path, "r")
+        h5fextra = None
+        if extra_path is not None:
+            h5fextra = h5py.File(extra_path, "r")
 
         #target depth
         if 'dense_image_data' in h5f:
@@ -279,16 +327,22 @@ class MyDataloaderExt(data.Dataset):
             result['gt_depth'] = depth
 
         if pose == 'gt':
-            assert ('gt_twc_data' in h5f), 'file {} - no pose'.format(path)
-            result['t_wc'] = np.array(h5f['gt_twc_data'])
-            assert result['t_wc'].shape == (4, 4)
+            if h5fextra is not None:
+                result['t_wc'] = np.array(h5fextra['gt_twc_data'])
+            else:
+                if 'gt_twc_data' not in h5f:
+                    return None
+                result['t_wc'] = np.array(h5f['gt_twc_data'])
+                assert result['t_wc'].shape == (4, 4), 'file {} - the t_wc is not 4x4'.format(path)
 
         if pose == 'slam':
-            assert ('slam_twc_data' in h5f), 'file {} - no pose'.format(path)
-            result['t_wc'] = np.array(h5f['slam_twc_data'])
-            assert result['t_wc'].shape == (4, 4)
-
-
+            if h5fextra is not None:
+                result['t_wc'] = np.array(h5fextra['slam_twc_data'])
+            else:
+                if 'slam_twc_data' not in h5f:
+                    return None
+                result['t_wc'] = np.array(h5f['slam_twc_data'])
+                assert result['t_wc'].shape == (4, 4), 'file {} - the t_wc is not 4x4'.format(path)
 
         # color data
         if 'rgb_image_data' in h5f:
@@ -314,7 +368,12 @@ class MyDataloaderExt(data.Dataset):
 
         #using real keypoints from slam
         if 'landmark_2d_data' in h5f:
-            data_2d = np.array(h5f['landmark_2d_data'])
+            if h5fextra is not None:
+                data_2d = np.array(h5fextra['landmark_2d_data'])
+            else:
+                if 'landmark_2d_data' not in h5f:
+                    return None
+                data_2d = np.array(h5f['landmark_2d_data'])
         else:
             data_2d = None
 
@@ -455,8 +514,11 @@ class MyDataloaderExt(data.Dataset):
     def __getitem__(self, index):
 
         input_np = None
+        image_path,_ = self.imgs[index]
+        channels_np = self.h5_loader_general(image_path,None, self.modality)
 
-        channels_np = self.h5_loader_general(index, self.modality)
+        if channels_np is None:
+            return None,None,None
 
         if self.transform is not None:
             channels_transformed_np = self.transform(channels_np)
@@ -506,15 +568,63 @@ class MyDataloaderExt(data.Dataset):
 
 class SeqMyDataloaderExt(MyDataloaderExt):
 
-    def __init__(self, root, type, sparsifier=None, modality='rgb',sequence_size=3,skip_step=5):
-        super(SeqMyDataloaderExt,self).__init__(root,type,sparsifier,modality,base_filter='ds-')
+    def __init__(self, root, type, sparsifier=None,max_gt_depth=math.inf, modality='rgb',sequence_size=2,skip_step=5):
+     #   super(SeqMyDataloaderExt,self).__init__(root,type,sparsifier,max_gt_depth,modality,base_filter='ds')
+        #self.extra_ds,num_extras = load_extra_datasets(root,type,self.imgs)
+        #print ("loaded new {} extras".format(num_extras))
         self.skip_step = skip_step
         self.sequence_size = sequence_size
+        self.begging_offset = (sequence_size-1)*skip_step
 
-    def load_one_sample(self, index):
+        if type == 'train':
+            self.transform = self.train_transform
+        elif type == 'val':
+            self.transform = self.val_transform
+        else:
+            raise RuntimeError('invalid type of dataset')
+
+        dataset_folder = os.path.join(root, type)
+
+        general_img_index = []
+
+        classes, class_to_idx = find_classes(dataset_folder, 'ds')
+        general_class_data = [ None ] * len(classes)
+        for i_class,curr_class in enumerate(classes):
+            class_images = load_class_dataset(dataset_folder,curr_class)
+            class_extras = None
+            if 'dsx' in curr_class:
+                class_extras, class_images = load_class_extras(dataset_folder,curr_class,class_images)
+            general_class_data[i_class] = dict(name=curr_class, images=class_images, extras=class_extras)
+
+            for i_img in range(self.begging_offset,len(class_images)):
+                general_img_index.append((i_class,i_img))
+
+        #imgs = make_dataset(dataset_folder, class_to_idx)
+        #self.classes = classes
+        #self.class_to_idx = class_to_idx
+
+        assert len(general_img_index) > 0, "Found 0 images compatible with sequencing in subfolders of: " + root + "\n"
+        print("Found {} images compatible with sequencing in {} folder.".format(len(general_img_index), type))
+
+        self.root = root
+        self.general_img_index = general_img_index
+        self.general_class_data = general_class_data
+
+        self.sparsifier = sparsifier
+        self.modality = Modality(modality)
+        self.max_gt_depth = max_gt_depth
+
+    def __len__(self):
+        return len(self.general_img_index)
+
+    def load_one_sample(self, class_idx, img_idx):
         input_np = None
+        class_entry = self.general_class_data[class_idx]
+        img_path = class_entry['images'][img_idx]
+        extra_path = (class_entry['extras'][img_idx] if class_entry['extras'] is not None else None )
+        channels_np = self.h5_loader_general(img_path, extra_path, self.modality,pose='gt')
 
-        channels_np = self.h5_loader_general(index, self.modality,pose='gt')
+        assert (channels_np is not None),"error in loading {} , {}".format(img_path,extra_path)
 
         if self.transform is not None:
             channels_transformed_np = self.transform(channels_np)
@@ -539,43 +649,50 @@ class SeqMyDataloaderExt(MyDataloaderExt):
 
         return input_tensor, target_depth_tensor, channels_transformed_np['scale'], channels_transformed_np['t_wc']
 
-    def find_near_frames(self, index):
-        _, sequence = self.imgs[index]
-        #search after
-        result = [index]
-        for i in range(1,self.sequence_size):
-            next = index + i*self.skip_step
-            if next < len(self.imgs):
-                _,next_sequence =self.imgs[next]
-                if sequence == next_sequence:
-                    result.append(next)
-                else:
-                    break
-
-        #search before
-        for i in range(1,self.sequence_size - len(result)):
-            next = index - i*self.skip_step
-            if next > 0:
-                _,next_sequence =self.imgs[next]
-                if sequence == next_sequence:
-                    result.append(next)
-                else:
-                    break
-
-        result.sort()
-        return result
+    # def find_near_frames(self, index):
+    #     _, sequence = self.imgs[index]
+    #     #search after
+    #     result = [index]
+    #     for i in range(1,self.sequence_size):
+    #         next = index + i*self.skip_step
+    #         if next < len(self.imgs):
+    #             _,next_sequence =self.imgs[next]
+    #             if sequence == next_sequence:
+    #                 result.append(next)
+    #             else:
+    #                 break
+    #
+    #     #search before
+    #     for i in range(1,self.sequence_size - len(result)):
+    #         next = index - i*self.skip_step
+    #         if next > 0:
+    #             _,next_sequence =self.imgs[next]
+    #             if sequence == next_sequence:
+    #                 result.append(next)
+    #             else:
+    #                 break
+    #
+    #     result.sort()
+    #     return result
 
 
 
 
     def __getitem__(self, index):
-        near_frames = self.find_near_frames( index )
+
+        idx_class,idx_img = self.general_img_index[index]
+
         result_input_tensor = []
         result_target_tensor = []
         result_scales = []
         result_transforms = []
-        for frame in near_frames:
-            curr_input,curr_target,curr_scale,transform = self.load_one_sample(frame)
+        for frame in range(self.sequence_size):
+            curr_img_idx = idx_img - (frame * self.skip_step)
+            curr_input,curr_target,curr_scale,transform = self.load_one_sample(idx_class,curr_img_idx)
+
+            if curr_input is None:
+                return None, None, None, None
+
             result_input_tensor.append(curr_input)
             result_target_tensor.append(curr_target)
             result_scales.append(curr_scale)
