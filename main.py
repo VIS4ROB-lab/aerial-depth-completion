@@ -136,7 +136,9 @@ def main():
             "=> no checkpoint found at '{}'".format(args.resume)
         print("=> loading checkpoint '{}'".format(args.resume))
         checkpoint = torch.load(args.resume)
+        old_args = args
         args = checkpoint['args']
+        args.data_path = old_args.data_path
         start_epoch = checkpoint['epoch'] + 1
         best_result = checkpoint['best_result']
         model = checkpoint['model']
