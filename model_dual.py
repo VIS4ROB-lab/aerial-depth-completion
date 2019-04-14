@@ -390,3 +390,150 @@ class LoopConfidenceNet(nn.Module):
             features_vec = torch.cat([photometric_error, depth_error], dim=1)
 
         return features_vec
+
+
+from nconv_sd import CNN as unguided_net
+
+
+class GEDNet(nn.Module):
+
+    def __init__(self, pos_fn='SoftPlus', pretrained=None):
+        super(GEDNet,self).__init__()
+
+        # Import the unguided network
+        self.d_net = unguided_net(pos_fn)
+
+        # U-Net
+        self.conv1 = nn.Conv2d(5, 80, (3, 3), 2, 1, bias=True)
+        self.conv2 = nn.Conv2d(80, 80, (3, 3), 2, 1, bias=True)
+        self.conv3 = nn.Conv2d(80, 80, (3, 3), 2, 1, bias=True)
+        self.conv4 = nn.Conv2d(80, 80, (3, 3), 2, 1, bias=True)
+        self.conv5 = nn.Conv2d(80, 80, (3, 3), 2, 1, bias=True)
+
+        self.conv6 = nn.Conv2d(80 + 80, 64, (3, 3), 1, 1, bias=True)
+        self.conv7 = nn.Conv2d(64 + 80, 64, (3, 3), 1, 1, bias=True)
+        self.conv8 = nn.Conv2d(64 + 80, 32, (3, 3), 1, 1, bias=True)
+        self.conv9 = nn.Conv2d(32 + 80, 32, (3, 3), 1, 1, bias=True)
+        self.conv10 = nn.Conv2d(32 + 1, 1, (3, 3), 1, 1, bias=True)
+
+        self.num_layer_confidence_data = 36
+
+        # Init Weights
+        cc = [self.conv1, self.conv2, self.conv3, self.conv4, self.conv5, \
+              self.conv6, self.conv7, self.conv8, self.conv9, self.conv10, ]
+        for m in cc:
+            nn.init.kaiming_normal_(m.weight)
+            nn.init.constant_(m.bias, 0.01)
+
+        if isinstance(pretrained,nn.Module):
+            pretrained_dict = pretrained.state_dict()
+            model_dict = self.state_dict()
+            # 1. filter out unnecessary keys
+            pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
+            # 2. overwrite entries in the existing state dict
+            model_dict.update(pretrained_dict)
+            # 3. load the new state dict
+            self.load_state_dict(model_dict)
+
+
+    def forward(self, x0):
+
+        x0_rgb = x0[:, :3, :, :]
+        x0_d = x0[:, 3:4, :, :]
+
+        if x0.shape[1] == 4:
+            c0 = (x0_d > 0).float()
+        else:
+            c0 = x0[:, 4:5, :, :]
+
+
+        # Depth Network
+        xout_d, cout_d = self.d_net(x0_d, c0)
+
+
+        # U-Net
+        x1 = F.relu(self.conv1(torch.cat((xout_d, x0_rgb, cout_d), 1)))
+        x2 = F.relu(self.conv2(x1))
+        x3 = F.relu(self.conv3(x2))
+        x4 = F.relu(self.conv4(x3))
+        x5 = F.relu(self.conv5(x4))
+
+
+        # Upsample 1
+        x5u = F.interpolate(x5, x4.size()[2:], mode='nearest')
+        x6 = F.leaky_relu(self.conv6(torch.cat((x5u, x4), 1)), 0.2)
+
+        # Upsample 2
+        x6u = F.interpolate(x6, x3.size()[2:], mode='nearest')
+        x7 = F.leaky_relu(self.conv7(torch.cat((x6u, x3), 1)), 0.2)
+
+        # Upsample 3
+        x7u = F.interpolate(x7, x2.size()[2:], mode='nearest')
+        x8 = F.leaky_relu(self.conv8(torch.cat((x7u, x2), 1)), 0.2)
+
+        # Upsample 4
+        x8u = F.interpolate(x8, x1.size()[2:], mode='nearest')
+        x9 = F.leaky_relu(self.conv9(torch.cat((x8u, x1), 1)), 0.2)
+
+        # Upsample 5
+        x9u = F.interpolate(x9, x0_d.size()[2:], mode='nearest')
+        last_layer_input = torch.cat((x9u, x0_d), 1)
+        x10 = F.leaky_relu(self.conv10(last_layer_input), 0.2)
+        layer_output = torch.cat((last_layer_input,xout_d, cout_d,x10), 1) # 33 + 1 + 1 + 1
+        self.conf_features = layer_output
+        return x10
+
+
+class SingleFrameConfidenceNet(nn.Module):
+
+
+    def __init__(self, singledcnet): #ged_train_weights
+        super(SingleFrameConfidenceNet, self).__init__()
+        self.curr_confidence_stack = conv_depth_features_validation(singledcnet.num_layer_confidence_data)
+        self.singledc = singledcnet
+        self.train_mode()
+
+    def getTrainableParameters(self,discriminator_only = True):
+        if discriminator_only:
+            return list(self.curr_confidence_stack.parameters())
+        return self.parameters()
+
+    def train_mode(self,discriminator_only = True):
+        self.curr_confidence_stack.train()
+        if discriminator_only:
+            self.singledc.eval()
+
+    def eval_mode(self):
+        self.curr_confidence_stack.eval()
+        self.singledc.eval()
+
+    def forward(self, rgbd):
+
+        depth = self.singledc(rgbd)
+        conf_features = self.singledc.conf_features
+        curr_confidence = torch.sigmoid(self.curr_confidence_stack(conf_features))
+
+        return torch.cat((depth,curr_confidence), 1)
+
+import copy
+
+class NConvLoss(nn.Module):
+
+    def __init__(self, singledcnet,lossnet):  # ged_train_weights
+        super(NConvLoss, self).__init__()
+
+        self.singledc = singledcnet
+        self.singledc.eval()
+        self.loss_fn = lossnet
+        self.loss_fn2 = copy.deepcopy(lossnet)
+
+    def forward(self,input,pred, target_depth,epoch):
+
+        rgbdc = torch.cat([input[:,:3,:,:],pred], dim=1)
+        input_confidence = ((input[:,3:4,:,:]>0).detach()).float()
+        new_pred = self.singledc(rgbdc)
+        result_depth = self.loss_fn(new_pred[:, :1, :, :], target_depth)
+        self.loss = self.loss_fn.loss
+        result_conf = self.loss_fn2(pred[:, 1:2, :, :], input_confidence)
+        self.loss[1] = self.loss_fn2.loss[0]
+        return result_depth + 10*result_conf

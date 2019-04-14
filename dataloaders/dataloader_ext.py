@@ -617,12 +617,13 @@ class SeqMyDataloaderExt(MyDataloaderExt):
     def __len__(self):
         return len(self.general_img_index)
 
-    def load_one_sample(self, class_idx, img_idx):
+    def load_one_sample(self, class_idx, img_idx,sequence_scale):
         input_np = None
         class_entry = self.general_class_data[class_idx]
         img_path = class_entry['images'][img_idx]
         extra_path = (class_entry['extras'][img_idx] if class_entry['extras'] is not None else None )
         channels_np = self.h5_loader_general(img_path, extra_path, self.modality,pose='gt')
+        channels_np['scale'] = sequence_scale
 
         assert (channels_np is not None),"error in loading {} , {}".format(img_path,extra_path)
 
@@ -684,7 +685,7 @@ class SeqMyDataloaderExt(MyDataloaderExt):
 
         result_input_tensor = []
         result_target_tensor = []
-        result_scales = []
+        result_scale = -1
         result_transforms = []
         for frame in range(self.sequence_size):
             curr_img_idx = idx_img - (frame * self.skip_step)

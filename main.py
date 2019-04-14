@@ -15,7 +15,7 @@ from models import ResNet
 from model_ext import DepthCompletionNet,DepthWeightCompletionNet,ValidDepthCompletionNet
 import guided_enc_dec
 import guided_ms_net
-from model_dual import SingleDepthCompletionNet
+from model_dual import SingleDepthCompletionNet, GEDNet,SingleFrameConfidenceNet,NConvLoss
 from metrics import AverageMeter, Result
 from dataloaders.dense_to_sparse import UniformSampling, SimulatedStereo
 import criteria
@@ -66,14 +66,21 @@ def create_data_loaders(args):
             modality=args.modality, sparsifier=sparsifier,depth_divider=args.depth_divider, arch=args.arch)
 
     elif args.data == 'visim':
-        traindir = args.data_path
-        valdir = args.data_path
         from dataloaders.visim_dataloader import VISIMDataset
         if not args.evaluate:
-            train_dataset = VISIMDataset(traindir, type='train',
+            train_dataset = VISIMDataset(args.data_path, type='train',
                 modality=args.modality, sparsifier=sparsifier,depth_divider=args.depth_divider, arch=args.arch,max_gt_depth=args.max_gt_depth)
-        val_dataset = VISIMDataset(valdir, type='val',
+        val_dataset = VISIMDataset(args.data_path, type='val',
             modality=args.modality, sparsifier=sparsifier,depth_divider=args.depth_divider, arch=args.arch,max_gt_depth=args.max_gt_depth)
+
+    elif args.data == 'visim_seq':
+        from dataloaders.visim_dataloader import VISIMSeqDataset
+        if not args.evaluate:
+            train_dataset = VISIMSeqDataset(args.data_path, type='train',
+                modality=args.modality, sparsifier=sparsifier,depth_divider=args.depth_divider, arch=args.arch)
+        val_dataset = VISIMSeqDataset(args.data_path, type='val',
+            modality=args.modality, sparsifier=sparsifier,depth_divider=args.depth_divider, arch=args.arch)
+
 
     else:
         raise RuntimeError('Dataset not found.' +
@@ -105,7 +112,9 @@ def main():
         print("=> loading best model '{}'".format(args.evaluate))
         checkpoint = torch.load(args.evaluate)
         output_directory = os.path.dirname(args.evaluate)
+        old_args = args
         args = checkpoint['args']
+        args.data_path = old_args.data_path
         start_epoch = checkpoint['epoch'] + 1
         best_result = checkpoint['best_result']
         model = checkpoint['model']
@@ -162,6 +171,7 @@ def main():
         train_loader, val_loader = create_data_loaders(args)
         print("=> creating Model ({}-{}-{}) ...".format(args.arch, args.decoder, args.depth_weight_head_type))
         in_channels = g_modality.num_channels()
+        opt_parameters = None
         if args.arch == 'resnet50':
             model = ResNet(layers=50, decoder=args.decoder, output_size=train_loader.dataset.output_size,
                 in_channels=in_channels, pretrained=args.pretrained)
@@ -222,14 +232,22 @@ def main():
         elif args.arch == 'gms_depthcompnet':
             model = guided_ms_net.CNN()
         elif args.arch == 'ged_depthcompnet':
-            model = guided_enc_dec.CNN()
+            model = GEDNet(pretrained=args.pretrained)
+        elif args.arch == 'cged_depthcompnet':
+            sdc = GEDNet(pretrained=args.pretrained)
+            model = SingleFrameConfidenceNet(sdc)
+            opt_parameters = model.getTrainableParameters()
+            #model = guided_enc_dec.CNN()
+
+        if opt_parameters is None:
+            opt_parameters = model.parameters()
 
         print("=> model created. GPUS:{}".format(torch.cuda.device_count()))
         if args.optimizer == 'sgd':
-            optimizer = torch.optim.SGD(model.parameters(), args.lr, \
+            optimizer = torch.optim.SGD(opt_parameters, args.lr, \
                                         momentum=args.momentum, weight_decay=args.weight_decay)
         elif args.optimizer == 'adam':
-            optimizer = torch.optim.Adam(model.parameters(), args.lr)
+            optimizer = torch.optim.Adam(opt_parameters, args.lr)
         else:
             raise RuntimeError ('unknow optimizer "{}"'.format(args.optimizer))
 
@@ -253,6 +271,15 @@ def main():
         criterion = criteria.MaskedWL1LossSmoothess().cuda()
     elif args.criterion == 'l2n_dual':
         criterion = criteria.MaskedL2NormalLoss().cuda()
+    elif args.criterion == 'cl2':
+        losssdc = GEDNet(pretrained=args.pretrained)
+        l2loss = criteria.MaskedMSELoss()
+        criterion = NConvLoss(losssdc,l2loss).cuda()
+    elif args.criterion == 'cl1':
+        losssdc = GEDNet(pretrained=args.pretrained)
+        l1loss = criteria.MaskedL1Loss()
+        criterion = NConvLoss(losssdc,l1loss).cuda()
+
 
 
 
@@ -272,6 +299,8 @@ def main():
     if not args.resume:
         with open(params_log, 'w') as paramsfile:
             for arg, value in sorted(vars(args).items()):
+                if isinstance(value,torch.nn.Module):
+                    value = 'nn.Module argument'
                 paramsfile.write("{}: {}\n".format(arg, value))
 
 
@@ -354,7 +383,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
             input, target = input.cuda(), target.cuda()
             target_depth = target[:, 0:1, :, :]
             pred = model(input)
-            loss = criterion(pred, target_depth,epoch)
+            loss = criterion(input,pred, target_depth,epoch)
 
         if loss is None or torch.isnan(loss) or torch.isinf(loss):
             print('ignoring image, no valid pixel')
@@ -424,8 +453,10 @@ def validate(val_loader, model, epoch, write_to_file=True):
         # compute output
         end = time.time()
         with torch.no_grad():
+            confidence_prediction = None
+            depth_prediction = None
             if 'vdepthcompnet' in args.arch:
-                pred, valids = model(input)
+                pred, confidence_prediction = model(input)
             elif 'sdepthcompnet' in args.arch:
                 target_depth = target[:, 0:1, :, :]
                 valid_mask = (target_depth > 0)
@@ -438,7 +469,8 @@ def validate(val_loader, model, epoch, write_to_file=True):
                 pred,_ = model(input)
             else:
                 full_prediction =  model(input)
-                pred = full_prediction[:,0:1,:,:]
+                depth_prediction = full_prediction[:,0:1,:,:]
+                confidence_prediction =full_prediction[:,1:2,:,:]
 
             torch.cuda.synchronize()
             gpu_time = time.time() - end
@@ -447,29 +479,22 @@ def validate(val_loader, model, epoch, write_to_file=True):
             #target_normal = target[:, 1:4, :, :]
 
 
-            pred[0, :, :, :] *= scale[0]
+            depth_prediction[0, :, :, :] *= scale[0]
             target_depth[0, :, :, :] *= scale[0]
 
-            normal_eval(pred, target_depth)
+            normal_eval(depth_prediction, target_depth)
             pred_normal, target_normal = normal_eval.get_extra_visualization()
             if full_prediction.shape[1] == 4:
                 pred_normal = full_prediction[:,1:4,:,:]
 
         # measure accuracy and record loss
         result = Result()
-        result.evaluate(pred.data, target_depth.data)
+        result.evaluate(depth_prediction.data, target_depth.data)
         average_meter.update(result, gpu_time, data_time,normal_eval.loss, input.size(0))
         end = time.time()
 
         skip = sample_step
-        # save 8 images for visualization
-        #skip = 1350
-        # if args.modality == 'd':
-        #     img_merge = None
-        # else:
-        #     if args.modality == 'rgb':
-        #         rgb = input
-        #     else:
+
         image_nchannels,_ = g_modality.get_input_image_channel()
 
         if image_nchannels == 3:
@@ -484,17 +509,17 @@ def validate(val_loader, model, epoch, write_to_file=True):
         if(depth_nchannels == 1):
             depth = input[:,image_nchannels:(image_nchannels+1),:,:]*scale[0]
         else:
-            depth = torch.zeros(input[:, 0:1, :, :].size())*scale[0]
+            depth = torch.zeros(input[:, 0:1, :, :].size())
 
         target_img = target_depth
-        pred_img = pred
+        pred_img = depth_prediction
 
         if i == 0:
-            img_merge = utils.merge_into_row_with_gt(rgb, depth, target_img, pred_img,target_normal,pred_normal,valids)
+            img_merge = utils.merge_into_row_with_gt(rgb, depth, target_img, pred_img,target_normal,pred_normal,confidence_prediction)
             filename = output_directory + '/comparison_' + str(epoch) + '.png'
             utils.save_image(img_merge, filename)
         elif (i < num_of_images*skip) and (i % skip == 0):
-            row = utils.merge_into_row_with_gt(rgb, depth, target_img, pred_img,target_normal,pred_normal,valids)
+            row = utils.merge_into_row_with_gt(rgb, depth, target_img, pred_img,target_normal,pred_normal,confidence_prediction)
             img_merge = utils.add_row(img_merge, row)
 
             if (i % (4*skip) == 0):

@@ -14,8 +14,8 @@ epsilon= np.finfo(float).eps
 cmap = plt.cm.viridis
 
 def parse_command():
-    model_names = ['resnet18', 'resnet34', 'resnet50','depthcompnet18','depthcompnet34','depthcompnet50','sdepthcompnet18','vdepthcompnet18','vdepthcompnet34','vdepthcompnet50','weightcompnet18','weightcompnet34','weightcompnet50','efsdepthcompnet18','csdepthcompnet18','erfdepthcompnet','nserfdepthcompnet','nderfdepthcompnet','gms_depthcompnet','ged_depthcompnet']
-    loss_names = ['l1', 'l2','l2gn','l2nv','l1smooth','wl1smooth','l2n_dual']
+    model_names = ['resnet18', 'resnet34', 'resnet50','depthcompnet18','depthcompnet34','depthcompnet50','sdepthcompnet18','vdepthcompnet18','vdepthcompnet34','vdepthcompnet50','weightcompnet18','weightcompnet34','weightcompnet50','efsdepthcompnet18','csdepthcompnet18','erfdepthcompnet','nserfdepthcompnet','nderfdepthcompnet','gms_depthcompnet','ged_depthcompnet','cged_depthcompnet']
+    loss_names = ['l1', 'l2','cl1', 'cl2','l2gn','l2nv','l1smooth','wl1smooth','l2n_dual']
     data_names = ['nyudepthv2', 'kitti', 'visim','visim_seq']
     opt_names = ['sgd', 'adam']
     depth_weight_head_type_names = ['CBR','ResBlock1','JOIN']
@@ -84,16 +84,19 @@ def parse_command():
     parser.add_argument('-o', '--optimizer', metavar='OPTIMIZER', default='sgd', choices=opt_names,
                         help='Optimizer: ' + ' | '.join(opt_names) + ' (default: SGD)')
 
-    #parser.set_defaults(pretrained=True)
+
     args = parser.parse_args()
 
 
-    if args.pretrained == 'resnet':
+    if args.pretrained == False:
+        print("not using pretraining")
+    elif args.pretrained == 'resnet':
         args.pretrained = True
     elif args.pretrained != '':
         assert os.path.isfile(args.pretrained)
     else:
         args.pretrained = False
+        print("not using pretraining")
 
     if not Modality.validate_static(args.modality):
         print("input modality with problem")
@@ -224,8 +227,8 @@ def merge_into_row_with_gt(input, depth_input, depth_target, depth_pred,normal_t
     absrel[mask] = abs_diff[mask]/ depth_target_cpu[mask]
     diff_col_abs = colored_depthmap(abs_diff, 0, 5)
 
-    diff_col_rel = colored_depthmap(absrel, 0, 1)
-    diff_col_rel01 = colored_depthmap(absrel, 0, 0.1)
+    diff_col_rel = colored_depthmap(absrel, 0, 0.1)
+    diff_col_rel01 = colored_depthmap(absrel, 0, 0.05)
     diff_col_rel01_pred = confidence_depthmap(valid_mask_cpu, 0, 1)
     diff_col_rel01_pred = confidence_depthmap(valid_mask_cpu, 0, 1)
     threshold_indices = valid_mask_cpu < 0.5
@@ -233,7 +236,7 @@ def merge_into_row_with_gt(input, depth_input, depth_target, depth_pred,normal_t
     valid_thres[threshold_indices] = 1
     diff_col_rel01_pred_thres =confidence_thres_depthmap(valid_thres)
 
-    img_merge = np.hstack([rgb, depth_input_col, normal_target_cpu,normal_pred_cpu, depth_target_col, depth_pred_col,hist,diff_col_abs,diff_col_rel,diff_col_rel01,diff_col_rel01_pred_thres])
+    img_merge = np.hstack([rgb, depth_input_col, normal_target_cpu,normal_pred_cpu, depth_target_col, depth_pred_col,hist,diff_col_abs,diff_col_rel,diff_col_rel01,diff_col_rel01_pred])
 
     return img_merge
 
