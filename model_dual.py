@@ -532,8 +532,34 @@ class NConvLoss(nn.Module):
         rgbdc = torch.cat([input[:,:3,:,:],pred], dim=1)
         input_confidence = ((input[:,3:4,:,:]>0).detach()).float()
         new_pred = self.singledc(rgbdc)
+        self.new_prediction = new_pred
         result_depth = self.loss_fn(new_pred[:, :1, :, :], target_depth)
         self.loss = self.loss_fn.loss
+
         result_conf = self.loss_fn2(pred[:, 1:2, :, :], input_confidence)
-        self.loss[1] = self.loss_fn2.loss[0]
-        return result_depth + 10*result_conf
+        self.loss[2] = self.loss_fn2.loss[0]
+
+        result_depth_old = self.loss_fn(pred[:, :1, :, :], target_depth)
+        self.loss[1] = self.loss_fn.loss[0]
+
+        return result_depth + result_conf
+
+class NConvLoss2(nn.Module):
+
+    def __init__(self, singledcnet,lossnet):  # ged_train_weights
+        super(NConvLoss2, self).__init__()
+
+        self.singledc = singledcnet
+        self.singledc.eval()
+        self.loss_fn = lossnet
+
+    def forward(self,input,pred, target_depth,epoch):
+
+        rgbdc = torch.cat([input[:,:3,:,:],pred], dim=1)
+        new_pred = self.singledc(rgbdc)
+        self.new_prediction = new_pred
+        result_depth = self.loss_fn(new_pred[:, :1, :, :], target_depth)
+        self.loss = self.loss_fn.loss
+        result_depth_old = self.loss_fn(pred[:, :1, :, :], target_depth)
+        self.loss[1] = self.loss_fn.loss[0]
+        return result_depth

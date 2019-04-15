@@ -342,6 +342,31 @@ class MaskedMSELoss(nn.Module):
 
         return final_loss
 
+class MaskedMSAbsRelELoss(nn.Module):
+    def __init__(self):
+        super(MaskedMSAbsRelELoss, self).__init__()
+
+
+    def get_extra_visualization(self):
+        return None,None
+
+    def forward(self, pred, target_depth,epoch=None):
+        #target_depth = target[:,0:1,:,:]
+        assert pred.dim() == target_depth.dim(), "inconsistent dimensions"
+        valid_mask = ((target_depth>0).detach())
+
+        num_valids = valid_mask.sum()
+        if num_valids < 10:
+            return None
+
+        diff = ((1.0/(target_depth[valid_mask])) - (1.0/(pred[valid_mask]))).abs()
+        #diff = diff[valid_mask]
+        final_loss = diff.mean()
+
+        self.loss = [final_loss.cpu().detach().numpy(),0,0]
+
+        return final_loss
+
 class MaskedL1Loss(nn.Module):
     def __init__(self):
         super(MaskedL1Loss, self).__init__()

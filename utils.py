@@ -15,7 +15,7 @@ cmap = plt.cm.viridis
 
 def parse_command():
     model_names = ['resnet18', 'resnet34', 'resnet50','depthcompnet18','depthcompnet34','depthcompnet50','sdepthcompnet18','vdepthcompnet18','vdepthcompnet34','vdepthcompnet50','weightcompnet18','weightcompnet34','weightcompnet50','efsdepthcompnet18','csdepthcompnet18','erfdepthcompnet','nserfdepthcompnet','nderfdepthcompnet','gms_depthcompnet','ged_depthcompnet','cged_depthcompnet']
-    loss_names = ['l1', 'l2','cl1', 'cl2','l2gn','l2nv','l1smooth','wl1smooth','l2n_dual']
+    loss_names = ['l1', 'l2','l2gn','l2nv','l1smooth','wl1smooth','l2n_dual','crl2', 'cl2','c2rl2', 'c2l2']
     data_names = ['nyudepthv2', 'kitti', 'visim','visim_seq']
     opt_names = ['sgd', 'adam']
     depth_weight_head_type_names = ['CBR','ResBlock1','JOIN']
@@ -113,10 +113,10 @@ def save_checkpoint(state, is_best, epoch, output_directory):
     if is_best:
         best_filename = os.path.join(output_directory, 'model_best.pth.tar')
         shutil.copyfile(checkpoint_filename, best_filename)
-    if epoch > 0:
-        prev_checkpoint_filename = os.path.join(output_directory, 'checkpoint-' + str(epoch-1) + '.pth.tar')
-        if os.path.exists(prev_checkpoint_filename):
-            os.remove(prev_checkpoint_filename)
+    # if epoch > 0:
+    #     prev_checkpoint_filename = os.path.join(output_directory, 'checkpoint-' + str(epoch-1) + '.pth.tar')
+    #     if os.path.exists(prev_checkpoint_filename):
+    #         os.remove(prev_checkpoint_filename)
 
 def adjust_learning_rate(optimizer, epoch, lr_init,lr_step,lr_min):
     """Sets the learning rate to the initial LR decayed by 10 every step epochs"""
@@ -154,7 +154,7 @@ def colored_depthmap(depth, d_min=None, d_max=None):
     depth_relative = (depth - d_min) / (d_max - d_min)
     return 255 * cmap(depth_relative)[:,:,:3] # H, W, C
 
-confidence_color_map = plt.cm.seismic
+confidence_color_map = plt.cm.gray #plt.cm.seismic gist_rainbow
 def confidence_depthmap(depth, d_min=None, d_max=None):
     if d_min is None:
         d_min = np.min(depth)
@@ -182,11 +182,12 @@ def merge_into_row(input, depth_target, depth_pred):
     return img_merge
 
 
-def merge_into_row_with_gt(input, depth_input, depth_target, depth_pred,normal_target=None,normal_pred=None,valid_mask=None):
+def merge_into_row_with_gt(input, depth_input, depth_target, depth_pred,normal_target=None,normal_pred=None,valid_mask=None,new_prediction=None):
     rgb = 255 * np.transpose(np.squeeze(input.cpu().numpy()), (1,2,0)) # H, W, C
     depth_input_cpu = np.squeeze(depth_input.cpu().numpy())
     depth_target_cpu = np.squeeze(depth_target.cpu().numpy())
     depth_pred_cpu = np.squeeze(depth_pred.data.cpu().numpy())
+
     if normal_target is not None:
         normal_target_cpu = 127.5 * (np.transpose(np.squeeze(normal_target.cpu().numpy()), (1,2,0))+1)
     else:
@@ -202,41 +203,48 @@ def merge_into_row_with_gt(input, depth_input, depth_target, depth_pred,normal_t
     else:
         valid_mask_cpu = np.zeros_like(depth_input_cpu)
 
-    input_depth_mask = depth_input_cpu > 10e-5
+    if new_prediction is not None:
+        new_depth_pred_cpu = np.squeeze(new_prediction.cpu().numpy())
+    else:
+        new_depth_pred_cpu = np.zeros_like(depth_input_cpu)
+
+
+    input_depth_mask  = depth_input_cpu  > 10e-5
     target_depth_mask = depth_target_cpu > 10e-5
     if input_depth_mask.sum() > 0:
         mask = np.logical_and( input_depth_mask,  target_depth_mask)
     else:
         mask = target_depth_mask
 
-    d_min = min(np.min(depth_input_cpu[mask]), np.min(depth_target_cpu[mask]), np.min(depth_pred_cpu))
+    d_min = min(np.min(depth_input_cpu[mask]), np.min(depth_target_cpu[target_depth_mask]), np.min(depth_pred_cpu[target_depth_mask]))
     d_max = max(np.max(depth_input_cpu), np.max(depth_target_cpu), np.max(depth_pred_cpu))
 
-    d_input_min = np.min(depth_input_cpu[mask])
-    d_input_max = np.max(depth_input_cpu[mask])
-    d_pred_min = np.min(depth_pred_cpu[mask])
-    d_pred_max = np.max(depth_pred_cpu[mask])
+    #d_input_min = np.min(depth_input_cpu[mask])
+    ##d_input_max = np.max(depth_input_cpu[mask])
+    #d_pred_min = np.min(depth_pred_cpu[mask])
+    #d_pred_max = np.max(depth_pred_cpu[mask])
 
     depth_input_col = colored_depthmap(depth_input_cpu, d_min, d_max)
     depth_target_col = colored_depthmap(depth_target_cpu, d_min, d_max)
     depth_pred_col = colored_depthmap(depth_pred_cpu, d_min, d_max)
+    new_depth_pred_col = colored_depthmap(new_depth_pred_cpu, d_min, d_max)
     hist = write_minmax(rgb.shape,d_min,d_max)
 
     abs_diff = np.absolute((depth_pred_cpu - depth_target_cpu))
     absrel = np.zeros_like(abs_diff)
-    absrel[mask] = abs_diff[mask]/ depth_target_cpu[mask]
+    absrel[target_depth_mask] = abs_diff[target_depth_mask]/ depth_target_cpu[target_depth_mask]
     diff_col_abs = colored_depthmap(abs_diff, 0, 5)
 
     diff_col_rel = colored_depthmap(absrel, 0, 0.1)
     diff_col_rel01 = colored_depthmap(absrel, 0, 0.05)
+    #diff_col_rel01_pred = confidence_depthmap(valid_mask_cpu, 0, 1)
     diff_col_rel01_pred = confidence_depthmap(valid_mask_cpu, 0, 1)
-    diff_col_rel01_pred = confidence_depthmap(valid_mask_cpu, 0, 1)
-    threshold_indices = valid_mask_cpu < 0.5
-    valid_thres = np.zeros_like(valid_mask_cpu)
-    valid_thres[threshold_indices] = 1
-    diff_col_rel01_pred_thres =confidence_thres_depthmap(valid_thres)
+    #threshold_indices = valid_mask_cpu < 0.5
+    #valid_thres = np.zeros_like(valid_mask_cpu)
+    #valid_thres[threshold_indices] = 1
+    #diff_col_rel01_pred_thres =confidence_thres_depthmap(valid_thres)
 
-    img_merge = np.hstack([rgb, depth_input_col, normal_target_cpu,normal_pred_cpu, depth_target_col, depth_pred_col,hist,diff_col_abs,diff_col_rel,diff_col_rel01,diff_col_rel01_pred])
+    img_merge = np.hstack([rgb, depth_input_col, normal_target_cpu,normal_pred_cpu, depth_target_col, depth_pred_col,hist,diff_col_abs,diff_col_rel,diff_col_rel01,diff_col_rel01_pred,new_depth_pred_col])
 
     return img_merge
 

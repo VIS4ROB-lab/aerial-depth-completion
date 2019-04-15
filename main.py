@@ -15,7 +15,7 @@ from models import ResNet
 from model_ext import DepthCompletionNet,DepthWeightCompletionNet,ValidDepthCompletionNet
 import guided_enc_dec
 import guided_ms_net
-from model_dual import SingleDepthCompletionNet, GEDNet,SingleFrameConfidenceNet,NConvLoss
+from model_dual import SingleDepthCompletionNet, GEDNet,SingleFrameConfidenceNet,NConvLoss,NConvLoss2
 from metrics import AverageMeter, Result
 from dataloaders.dense_to_sparse import UniformSampling, SimulatedStereo
 import criteria
@@ -275,10 +275,18 @@ def main():
         losssdc = GEDNet(pretrained=args.pretrained)
         l2loss = criteria.MaskedMSELoss()
         criterion = NConvLoss(losssdc,l2loss).cuda()
-    elif args.criterion == 'cl1':
+    elif args.criterion == 'crl2':
         losssdc = GEDNet(pretrained=args.pretrained)
-        l1loss = criteria.MaskedL1Loss()
+        l1loss = criteria.MaskedMSAbsRelELoss()
         criterion = NConvLoss(losssdc,l1loss).cuda()
+    elif args.criterion == 'c2l2':
+        losssdc = GEDNet(pretrained=args.pretrained)
+        l2loss = criteria.MaskedMSELoss()
+        criterion = NConvLoss2(losssdc,l2loss).cuda()
+    elif args.criterion == 'c2rl2':
+        losssdc = GEDNet(pretrained=args.pretrained)
+        l1loss = criteria.MaskedMSAbsRelELoss()
+        criterion = NConvLoss2(losssdc,l1loss).cuda()
 
 
 
@@ -316,7 +324,7 @@ def main():
         print('#### lr: {}'.format(optimizer.param_groups[0]['lr']))
 
         train(train_loader, model, criterion, optimizer, epoch) # train for one epoch
-        result, img_merge = validate(val_loader, model, epoch) # evaluate on validation set
+        result, img_merge = validate(val_loader, model,criterion, epoch) # evaluate on validation set
 
 
         # remember best rmse and save checkpoint
@@ -436,12 +444,13 @@ def train(train_loader, model, criterion, optimizer, epoch):
             'mae': avg.mae, 'delta1': avg.delta1, 'delta2': avg.delta2, 'delta3': avg.delta3,
             'gpu_time': avg.gpu_time, 'data_time': avg.data_time,'loss0': avg.loss0,'loss1': avg.loss1,'loss2': avg.loss2})
 
-def validate(val_loader, model, epoch, write_to_file=True):
+def validate(val_loader, model,criterion, epoch, write_to_file=True):
     average_meter = AverageMeter()
     model.eval() # switch to evaluate mode
     normal_eval = criteria.MaskedL2GradNormalLoss().cuda().eval()
     end = time.time()
     num_of_images = args.val_images
+    scaled_new_prediction = None
     sample_step = math.floor(len(val_loader) / float(num_of_images))
     for i, (input, target,scale) in enumerate(val_loader):
         input, target = input.cuda(), target.cuda()
@@ -471,6 +480,7 @@ def validate(val_loader, model, epoch, write_to_file=True):
                 full_prediction =  model(input)
                 depth_prediction = full_prediction[:,0:1,:,:]
                 confidence_prediction =full_prediction[:,1:2,:,:]
+                loss = criterion(input, full_prediction, target, epoch)
 
             torch.cuda.synchronize()
             gpu_time = time.time() - end
@@ -489,8 +499,12 @@ def validate(val_loader, model, epoch, write_to_file=True):
 
         # measure accuracy and record loss
         result = Result()
-        result.evaluate(depth_prediction.data, target_depth.data)
-        average_meter.update(result, gpu_time, data_time,normal_eval.loss, input.size(0))
+        if args.criterion in ['c2l1','cl1','c2l2','cl2']:
+            scaled_new_prediction = criterion.new_prediction[0:1, :, :, :] * scale[0]
+            result.evaluate(scaled_new_prediction.data, target_depth.data)
+        else:
+            result.evaluate(depth_prediction.data, target_depth.data)
+        average_meter.update(result, gpu_time, data_time,criterion.loss, input.size(0))
         end = time.time()
 
         skip = sample_step
@@ -515,11 +529,11 @@ def validate(val_loader, model, epoch, write_to_file=True):
         pred_img = depth_prediction
 
         if i == 0:
-            img_merge = utils.merge_into_row_with_gt(rgb, depth, target_img, pred_img,target_normal,pred_normal,confidence_prediction)
+            img_merge = utils.merge_into_row_with_gt(rgb, depth, target_img, pred_img,target_normal,pred_normal,confidence_prediction,scaled_new_prediction)
             filename = output_directory + '/comparison_' + str(epoch) + '.png'
             utils.save_image(img_merge, filename)
         elif (i < num_of_images*skip) and (i % skip == 0):
-            row = utils.merge_into_row_with_gt(rgb, depth, target_img, pred_img,target_normal,pred_normal,confidence_prediction)
+            row = utils.merge_into_row_with_gt(rgb, depth, target_img, pred_img,target_normal,pred_normal,confidence_prediction,scaled_new_prediction)
             img_merge = utils.add_row(img_merge, row)
 
             if (i % (4*skip) == 0):
