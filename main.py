@@ -16,7 +16,7 @@ from model_ext import DepthCompletionNet,DepthWeightCompletionNet,ValidDepthComp
 import guided_enc_dec
 import guided_ms_net
 from model_dual import SingleDepthCompletionNet, GEDNet,SingleFrameConfidenceNet,NConvLoss,NConvLoss2
-from metrics import AverageMeter, Result
+from metrics import AverageMeter, Result,ConfidencePixelwiseAverageMeter
 from dataloaders.dense_to_sparse import UniformSampling, SimulatedStereo
 import criteria
 import utils
@@ -121,7 +121,7 @@ def main():
         print("=> loaded best model (epoch {})".format(checkpoint['epoch']))
         _, val_loader = create_data_loaders(args)
         args.evaluate = True
-        validate(val_loader, model, checkpoint['epoch'], write_to_file=False)
+        validate(val_loader, model,None, checkpoint['epoch'], write_to_file=False)
         return
 
     # optionally resume from a checkpoint
@@ -446,6 +446,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
 
 def validate(val_loader, model,criterion, epoch, write_to_file=True):
     average_meter = AverageMeter()
+    conf_avg_meter = ConfidencePixelwiseAverageMeter()
     model.eval() # switch to evaluate mode
     normal_eval = criteria.MaskedL2GradNormalLoss().cuda().eval()
     end = time.time()
@@ -480,7 +481,10 @@ def validate(val_loader, model,criterion, epoch, write_to_file=True):
                 full_prediction =  model(input)
                 depth_prediction = full_prediction[:,0:1,:,:]
                 confidence_prediction =full_prediction[:,1:2,:,:]
-                loss = criterion(input, full_prediction, target, epoch)
+                if criterion is not None:
+                    loss = criterion(input, full_prediction, target, epoch)
+                else:
+                    loss = None
 
             torch.cuda.synchronize()
             gpu_time = time.time() - end
@@ -499,12 +503,17 @@ def validate(val_loader, model,criterion, epoch, write_to_file=True):
 
         # measure accuracy and record loss
         result = Result()
-        if args.criterion in ['c2l1','cl1','c2l2','cl2']:
+        if args.criterion in ['c2l1','cl1','c2l2','cl2'] and criterion is not None:
             scaled_new_prediction = criterion.new_prediction[0:1, :, :, :] * scale[0]
             result.evaluate(scaled_new_prediction.data, target_depth.data)
         else:
             result.evaluate(depth_prediction.data, target_depth.data)
-        average_meter.update(result, gpu_time, data_time,criterion.loss, input.size(0))
+        if criterion is not None:
+            loss_results = criterion.loss
+        else:
+            loss_results = [0,0,0]
+        conf_avg_meter.evaluate(depth_prediction.data,confidence_prediction.data, target_depth.data)
+        average_meter.update(result, gpu_time, data_time,loss_results, input.size(0))
         end = time.time()
 
         skip = sample_step
@@ -551,6 +560,7 @@ def validate(val_loader, model,criterion, epoch, write_to_file=True):
                    i+1, len(val_loader), gpu_time=gpu_time, result=result, average=average_meter.average()))
 
     avg = average_meter.average()
+    avg_with_confidence = conf_avg_meter.result()
 
     print('\n*\n'
         'RMSE={average.rmse:.3f}\n'
@@ -560,6 +570,8 @@ def validate(val_loader, model,criterion, epoch, write_to_file=True):
         'Lg10={average.lg10:.3f}\n'
         't_GPU={time:.3f}\n'.format(
         average=avg, time=avg.gpu_time))
+
+    print(avg_with_confidence)
 
     if write_to_file:
         with open(test_csv, 'a') as csvfile:

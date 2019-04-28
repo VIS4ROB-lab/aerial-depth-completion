@@ -57,6 +57,43 @@ class Result(object):
         self.irmse = math.sqrt((torch.pow(abs_inv_diff, 2)).mean())
         self.imae = float(abs_inv_diff.mean())
 
+class ConfidencePixelwiseAverageMeter(object):
+    def __init__(self,num_bins=1000):
+        self.num_bins = num_bins
+        self.reset()
+
+    def reset(self):
+        self.count = np.zeros([self.num_bins], np.uint64)
+        self.absrel = np.zeros([self.num_bins], np.uint64)
+
+    def hash_index(self,confidence): #confidence is a matrix between 0 and 1
+        indexs = np.floor((confidence - 10e-15) * self.num_bins)
+        return indexs.astype(int)
+
+    def evaluate(self, depth, confidence, target):
+        valid_mask = target > 0
+        depth = depth[valid_mask]
+        target = target[valid_mask]
+        confidence = confidence[valid_mask]
+        indexes = self.hash_index(confidence.cpu().numpy())
+
+        abs_diff = (depth - target).abs()
+        absrel = ((abs_diff / target)*1000).cpu().numpy()
+
+        for img_index, conf_index in np.ndenumerate(indexes):
+            self.count[conf_index] += 1
+            self.absrel[conf_index] += absrel[img_index]
+
+    def result(self):
+        res = [None] * self.num_bins
+        for pos, conf_index in np.ndenumerate(self.count):
+            if self.count[pos] > 0:
+                res[pos[0]] = self.absrel[pos]/ self.count[pos]
+        return res
+
+
+
+
 
 class AverageMeter(object):
     def __init__(self):
