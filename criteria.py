@@ -325,7 +325,7 @@ class MaskedMSELoss(nn.Module):
     def get_extra_visualization(self):
         return None,None
 
-    def forward(self, pred, target_depth,epoch=None):
+    def forward(self,input, pred, target_depth,epoch=None):
         #target_depth = target[:,0:1,:,:]
         assert pred.dim() == target_depth.dim(), "inconsistent dimensions"
         valid_mask = ((target_depth>0).detach())

@@ -480,7 +480,7 @@ def validate(val_loader, model,criterion, epoch, write_to_file=True):
             else:
                 full_prediction =  model(input)
                 depth_prediction = full_prediction[:,0:1,:,:]
-                confidence_prediction =full_prediction[:,1:2,:,:]
+                #confidence_prediction =full_prediction[:,1:2,:,:]
                 if criterion is not None:
                     loss = criterion(input, full_prediction, target, epoch)
                 else:
@@ -512,7 +512,7 @@ def validate(val_loader, model,criterion, epoch, write_to_file=True):
             loss_results = criterion.loss
         else:
             loss_results = [0,0,0]
-        conf_avg_meter.evaluate(depth_prediction.data,confidence_prediction.data, target_depth.data)
+        #conf_avg_meter.evaluate(depth_prediction.data,confidence_prediction.data, target_depth.data)
         average_meter.update(result, gpu_time, data_time,loss_results, input.size(0))
         end = time.time()
 
