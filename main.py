@@ -178,6 +178,12 @@ def main():
         elif args.arch == 'resnet18':
             model = ResNet(layers=18, decoder=args.decoder, output_size=train_loader.dataset.output_size,
                 in_channels=in_channels, pretrained=args.pretrained)
+        elif args.arch == 'resnet101':
+            model = ResNet(layers=101, decoder=args.decoder, output_size=train_loader.dataset.output_size,
+                in_channels=in_channels, pretrained=args.pretrained)
+        elif args.arch == 'resnet152':
+            model = ResNet(layers=152, decoder=args.decoder, output_size=train_loader.dataset.output_size,
+                           in_channels=in_channels, pretrained=args.pretrained)
         elif args.arch == 'resnet34':
             model = ResNet(layers=34, decoder=args.decoder, output_size=train_loader.dataset.output_size,
                 in_channels=in_channels, pretrained=args.pretrained)
