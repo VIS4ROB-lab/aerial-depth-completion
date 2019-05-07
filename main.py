@@ -571,7 +571,7 @@ def validate(val_loader, model,criterion, epoch, write_to_file=True):
         't_GPU={time:.3f}\n'.format(
         average=avg, time=avg.gpu_time))
 
-    print(avg_with_confidence)
+    # print(avg_with_confidence)
 
     if write_to_file:
         with open(test_csv, 'a') as csvfile:
