@@ -254,7 +254,11 @@ def main():
         if torch.cuda.device_count() > 1 :
             model = torch.nn.DataParallel(model) # for multi-gpu training
         model = model.cuda()
-        summary(model,(4,240,320))
+
+        if 'resnet' in args.arch:
+            summary(model,(in_channels,228, 304))
+        else:
+            summary(model, (in_channels, 240, 320))
 
     # define loss function (criterion) and optimizer
     if args.criterion == 'l2':
