@@ -504,7 +504,8 @@ def validate(val_loader, model,criterion, epoch, write_to_file=True):
             else:
                 full_prediction =  model(input)
                 depth_prediction = full_prediction[:,0:1,:,:]
-                confidence_prediction =full_prediction[:,1:2,:,:]
+                if args.arch in ['creseeged_depthcompnet','cresged_depthcompnet','ceeged_depthcompnet','cged_depthcompnet']:
+                    confidence_prediction =full_prediction[:,1:2,:,:]
                 if criterion is not None:
                     loss = criterion(input, full_prediction, target, epoch)
                 else:
