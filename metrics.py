@@ -92,6 +92,52 @@ class ConfidencePixelwiseAverageMeter(object):
         return res
 
 
+class ConfidencePixelwiseThrAverageMeter(object):
+    def __init__(self,num_bins=200,top= 0.25):
+        self.num_bins = num_bins
+        self.thresholds = np.linspace(0, top, num_bins, endpoint=True)
+        self.reset()
+
+    def reset(self):
+        self.count  = np.zeros([self.num_bins], np.uint64)
+        self.absrel = np.zeros([self.num_bins], np.uint64)
+        self.recall = np.zeros([self.num_bins], np.uint64)
+
+    def evaluate(self, depth, confidence, target):
+        valid_mask = target > 0
+        depth = depth[valid_mask]
+        target = target[valid_mask]
+        confidence = confidence[valid_mask]
+
+        abs_diff = (depth - target).abs()
+        absrel = ((abs_diff / target) * 1000.0) #.cpu().numpy()
+
+        num_valids = valid_mask.sum()/1000.0
+
+        for img_index, curr_conf in np.ndenumerate(self.thresholds):
+            mask = confidence > curr_conf
+            absrel_medio = absrel[mask].float().mean()
+            valids = mask.sum() / num_valids
+            if(math.isfinite(absrel_medio) and math.isfinite(valids)):
+                self.count[img_index] += 1
+                self.absrel[img_index] += int(absrel_medio)
+                self.recall[img_index] += int(valids)
+
+
+    def result(self):
+        res = [(None,None)] * self.num_bins
+        for pos, conf_index in np.ndenumerate(self.count):
+            if self.count[pos] > 0:
+                res[pos[0]] = (self.absrel[pos]/ self.count[pos],self.recall[pos]/ self.count[pos])
+        return res
+
+    def print(self,filename):
+        lines = self.result()
+        with open(filename, 'w') as csvfile:
+            for absrel, recall in lines:
+                csvfile.write('{},{}\n'.format(recall/1000.0,absrel/1000.0))
+
+
 
 
 

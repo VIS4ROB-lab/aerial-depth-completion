@@ -16,7 +16,7 @@ from model_ext import DepthCompletionNet,DepthWeightCompletionNet,ValidDepthComp
 import guided_enc_dec
 import guided_ms_net
 from model_dual import SingleDepthCompletionNet, GEDNet,SingleFrameConfidenceNet,NConvLoss,NConvLoss2
-from metrics import AverageMeter, Result,ConfidencePixelwiseAverageMeter
+from metrics import AverageMeter, Result,ConfidencePixelwiseAverageMeter,ConfidencePixelwiseThrAverageMeter
 from dataloaders.dense_to_sparse import UniformSampling, SimulatedStereo
 import criteria
 import utils
@@ -102,7 +102,7 @@ def create_data_loaders(args):
     return train_loader, val_loader
 
 def main():
-    global args, best_result, output_directory, train_csv, test_csv
+    global args, best_result, output_directory, train_csv, test_csv, pr_confidence_csv
     output_directory = utils.get_output_directory(args)
     # evaluation mode
     start_epoch = 0
@@ -241,9 +241,22 @@ def main():
             model = GEDNet(pretrained=args.pretrained)
         elif args.arch == 'cged_depthcompnet':
             sdc = GEDNet(pretrained=args.pretrained)
-            model = SingleFrameConfidenceNet(sdc)
+            model = SingleFrameConfidenceNet(sdc,True)
             opt_parameters = model.getTrainableParameters()
-            #model = guided_enc_dec.CNN()
+        elif args.arch == 'ceeged_depthcompnet':
+            sdc = GEDNet(pretrained=args.pretrained)
+            model = SingleFrameConfidenceNet(sdc,False)
+            opt_parameters = model.getTrainableParameters()
+        elif args.arch == 'cresged_depthcompnet':
+            sdc = GEDNet(pretrained=args.pretrained)
+            model = SingleFrameConfidenceNet(sdc,True,True)
+            opt_parameters = model.getTrainableParameters()
+        elif args.arch == 'creseeged_depthcompnet':
+            sdc = GEDNet(pretrained=args.pretrained)
+            model = SingleFrameConfidenceNet(sdc,False,True)
+            opt_parameters = model.getTrainableParameters()
+        else:
+            raise RuntimeError ('Unknown arch')
 
         if opt_parameters is None:
             opt_parameters = model.parameters()
@@ -310,6 +323,7 @@ def main():
         os.makedirs(output_directory)
     train_csv = os.path.join(output_directory, 'train.csv')
     test_csv = os.path.join(output_directory, 'test.csv')
+    pr_confidence_csv = os.path.join(output_directory, 'pr_confidence.csv')
     best_txt = os.path.join(output_directory, 'best.txt')
     params_log = os.path.join(output_directory, 'params.txt')
 
@@ -456,7 +470,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
 
 def validate(val_loader, model,criterion, epoch, write_to_file=True):
     average_meter = AverageMeter()
-    conf_avg_meter = ConfidencePixelwiseAverageMeter()
+    conf_avg_meter = ConfidencePixelwiseThrAverageMeter()
     model.eval() # switch to evaluate mode
     normal_eval = criteria.MaskedL2GradNormalLoss().cuda().eval()
     end = time.time()
@@ -490,7 +504,7 @@ def validate(val_loader, model,criterion, epoch, write_to_file=True):
             else:
                 full_prediction =  model(input)
                 depth_prediction = full_prediction[:,0:1,:,:]
-                #confidence_prediction =full_prediction[:,1:2,:,:]
+                confidence_prediction =full_prediction[:,1:2,:,:]
                 if criterion is not None:
                     loss = criterion(input, full_prediction, target, epoch)
                 else:
@@ -522,8 +536,10 @@ def validate(val_loader, model,criterion, epoch, write_to_file=True):
             loss_results = criterion.loss
         else:
             loss_results = [0,0,0]
-        #conf_avg_meter.evaluate(depth_prediction.data,confidence_prediction.data, target_depth.data)
+
         average_meter.update(result, gpu_time, data_time,loss_results, input.size(0))
+        #if( i%10 == 0):
+        #    conf_avg_meter.evaluate(depth_prediction.data, confidence_prediction.data, target_depth.data)
         end = time.time()
 
         skip = sample_step
@@ -581,7 +597,8 @@ def validate(val_loader, model,criterion, epoch, write_to_file=True):
         't_GPU={time:.3f}\n'.format(
         average=avg, time=avg.gpu_time))
 
-    # print(avg_with_confidence)
+#    conf_avg_meter.print('/home/lucas/Pictures/test/test.txt')
+    print(avg_with_confidence)
 
     if write_to_file:
         with open(test_csv, 'a') as csvfile:

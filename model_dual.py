@@ -1,5 +1,6 @@
 import math
 import torch
+from models import ResNet
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision.models import resnet
@@ -487,25 +488,28 @@ class GEDNet(nn.Module):
 class SingleFrameConfidenceNet(nn.Module):
 
 
-    def __init__(self, singledcnet): #ged_train_weights
+    def __init__(self, singledcnet, discriminator_only=True, resnet=False): #ged_train_weights
         super(SingleFrameConfidenceNet, self).__init__()
-        self.curr_confidence_stack = conv_depth_features_validation(singledcnet.num_layer_confidence_data)
+        if resnet:
+            self.curr_confidence_stack = ResNet(layers=18, decoder = 'upproj', output_size=[240,320],
+                in_channels=singledcnet.num_layer_confidence_data, pretrained=True)
+        else:
+            self.curr_confidence_stack = conv_depth_features_validation(singledcnet.num_layer_confidence_data)
         self.singledc = singledcnet
-        self.train_mode()
+        self.discriminator_only = discriminator_only
 
-    def getTrainableParameters(self,discriminator_only = True):
-        if discriminator_only:
+
+    def getTrainableParameters(self):
+        if self.discriminator_only:
             return list(self.curr_confidence_stack.parameters())
         return self.parameters()
 
-    def train_mode(self,discriminator_only = True):
-        self.curr_confidence_stack.train()
-        if discriminator_only:
-            self.singledc.eval()
+    def train(self, mode=True):
+        super(SingleFrameConfidenceNet, self).train(mode)
+        #self.curr_confidence_stack.train()
+        #if self.discriminator_only:
+        #    self.singledc.eval()
 
-    def eval_mode(self):
-        self.curr_confidence_stack.eval()
-        self.singledc.eval()
 
     def forward(self, rgbd):
 
@@ -549,15 +553,15 @@ class NConvLoss2(nn.Module):
     def __init__(self, singledcnet,lossnet):  # ged_train_weights
         super(NConvLoss2, self).__init__()
         self.singledc = singledcnet
-        self.singledc.eval()
+        #self.singledc.eval()
         self.loss_fn = lossnet
 
     def forward(self,input,pred, target_depth,epoch):
         rgbdc = torch.cat([input[:,:3,:,:],pred], dim=1)
         new_pred = self.singledc(rgbdc)
         self.new_prediction = new_pred
-        result_depth = self.loss_fn(new_pred[:, :1, :, :], target_depth)
+        result_depth = self.loss_fn(rgbdc,new_pred[:, :1, :, :], target_depth)
         self.loss = self.loss_fn.loss
-        result_depth_old = self.loss_fn(pred[:, :1, :, :], target_depth)
-        self.loss[1] = self.loss_fn.loss[0]
+        # result_depth_old = self.loss_fn(rgbdc,pred[:, :1, :, :], target_depth)
+        # self.loss[1] = self.loss_fn.loss[0]
         return result_depth

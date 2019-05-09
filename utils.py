@@ -28,7 +28,7 @@ def parse_command():
 
     import argparse
     parser = argparse.ArgumentParser(description='Aerial Depth Completion')
-    parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet18', choices=model_names,
+    parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet18', #choices=model_names,
                         help='model architecture: ' + ' | '.join(model_names) + ' (default: resnet18)')
     parser.add_argument('--depth-weight-head-type', '-dwht', metavar='TYPE', default='CBR', choices=depth_weight_head_type_names,
                         help='head architecture: ' + ' | '.join(depth_weight_head_type_names) + ' (default: CBR)')
