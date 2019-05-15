@@ -78,8 +78,8 @@ class CNN(nn.Module):
 
 
         # Upsample 1
-        x4 = F.interpolate(x4_ds, c3_ds.size()[2:], mode='nearest') 
-        c4 = F.interpolate(c4_ds, c3_ds.size()[2:], mode='nearest')       
+        x4 = F.interpolate(x4_ds, c3_ds.size()[2:], mode='nearest')
+        c4 = F.interpolate(c4_ds, c3_ds.size()[2:], mode='nearest')
         x34_ds, c34_ds = self.nconv4(torch.cat((x3_ds,x4), 1),  torch.cat((c3_ds,c4), 1))                
         
         # Upsample 2
@@ -97,6 +97,6 @@ class CNN(nn.Module):
         xout, cout = self.nconv7(xout, cout)
 
         #xout = torch.cat((xout,cout), 1)
-                
+
         return xout, cout
-        
+

@@ -14,6 +14,7 @@ class Result(object):
         self.delta1, self.delta2, self.delta3 = 0, 0, 0
         self.data_time, self.gpu_time = 0, 0
         self.loss0, self.loss1,self.loss2 = 0, 0,0
+        self.threhold = 0#0.0052763819095477385
 
     def set_to_worst(self):
         self.irmse, self.imae = np.inf, np.inf
@@ -31,8 +32,12 @@ class Result(object):
         self.data_time, self.gpu_time = data_time, gpu_time
         self.loss0, self.loss1, self.loss2 = loss0,loss1,loss2
 
-    def evaluate(self, output, target):
-        valid_mask = target>0
+    def evaluate(self, output, target,confidence = None):
+
+        if confidence is None:
+            valid_mask = target>0
+        else:
+            valid_mask = (target>0) & (confidence > self.threhold)
         output = output[valid_mask]
         target = target[valid_mask]
 
@@ -93,7 +98,7 @@ class ConfidencePixelwiseAverageMeter(object):
 
 
 class ConfidencePixelwiseThrAverageMeter(object):
-    def __init__(self,num_bins=200,top= 0.25):
+    def __init__(self,num_bins=200,top= 0.15):
         self.num_bins = num_bins
         self.thresholds = np.linspace(0, top, num_bins, endpoint=True)
         self.reset()
@@ -128,14 +133,14 @@ class ConfidencePixelwiseThrAverageMeter(object):
         res = [(None,None)] * self.num_bins
         for pos, conf_index in np.ndenumerate(self.count):
             if self.count[pos] > 0:
-                res[pos[0]] = (self.absrel[pos]/ self.count[pos],self.recall[pos]/ self.count[pos])
+                res[pos[0]] = (self.absrel[pos]/ self.count[pos],self.recall[pos]/ self.count[pos],self.thresholds[pos])
         return res
 
     def print(self,filename):
         lines = self.result()
         with open(filename, 'w') as csvfile:
-            for absrel, recall in lines:
-                csvfile.write('{},{}\n'.format(recall/1000.0,absrel/1000.0))
+            for absrel, recall,thr in lines:
+                csvfile.write('{},{},{}\n'.format(thr,recall/1000.0,absrel/1000.0))
 
 
 

@@ -480,7 +480,7 @@ class GEDNet(nn.Module):
         x9u = F.interpolate(x9, x0_d.size()[2:], mode='nearest')
         last_layer_input = torch.cat((x9u, x0_d), 1)
         x10 = F.leaky_relu(self.conv10(last_layer_input), 0.2)
-        layer_output = torch.cat((last_layer_input,xout_d, cout_d,x10), 1) # 33 + 1 + 1 + 1
+        layer_output = torch.cat((last_layer_input,xout_d, cout_d,x10), 1) # 32 + 2 + 1 + 1
         self.conf_features = layer_output
         return x10
 

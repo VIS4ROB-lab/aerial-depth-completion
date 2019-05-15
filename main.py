@@ -119,6 +119,8 @@ def main():
         best_result = checkpoint['best_result']
         model = checkpoint['model']
         print("=> loaded best model (epoch {})".format(checkpoint['epoch']))
+        #args.num_samples = 500
+        #args.modality = 'rgb-kde'
         _, val_loader = create_data_loaders(args)
         args.evaluate = True
         validate(val_loader, model,None, checkpoint['epoch'], write_to_file=False)
@@ -532,15 +534,15 @@ def validate(val_loader, model,criterion, epoch, write_to_file=True):
             scaled_new_prediction = criterion.new_prediction[0:1, :, :, :] * scale[0]
             result.evaluate(scaled_new_prediction.data, target_depth.data)
         else:
-            result.evaluate(depth_prediction.data, target_depth.data)
+            result.evaluate(depth_prediction.data, target_depth.data,confidence_prediction.data)
         if criterion is not None:
             loss_results = criterion.loss
         else:
             loss_results = [0,0,0]
 
         average_meter.update(result, gpu_time, data_time,loss_results, input.size(0))
-        #if( i%10 == 0):
-        #    conf_avg_meter.evaluate(depth_prediction.data, confidence_prediction.data, target_depth.data)
+        if( i%10 == 0):
+            conf_avg_meter.evaluate(depth_prediction.data, confidence_prediction.data, target_depth.data)
         end = time.time()
 
         skip = sample_step
@@ -592,13 +594,14 @@ def validate(val_loader, model,criterion, epoch, write_to_file=True):
     print('\n*\n'
         'RMSE={average.rmse:.3f}\n'
         'MAE={average.mae:.3f}\n'
+        'MSE={average.mse:.3f}\n'
         'Delta1={average.delta1:.3f}\n'
         'REL={average.absrel:.3f}\n'
         'Lg10={average.lg10:.3f}\n'
         't_GPU={time:.3f}\n'.format(
         average=avg, time=avg.gpu_time))
 
-#    conf_avg_meter.print('/home/lucas/Pictures/test/test.txt')
+    conf_avg_meter.print('/home/lucas/Pictures/test/test.txt')
     print(avg_with_confidence)
 
     if write_to_file:
