@@ -216,14 +216,11 @@ class MyDataloaderExt(data.Dataset):
         else:
             raise RuntimeError('invalid type of dataset')
 
-        if os.path.exists(os.path.join(root,'{}.txt'.format(type))):
-            imgs = load_files_list(os.path.join(root,'{}.txt'.format(type)))
-        else:
-            dataset_folder = os.path.join(root, type)
-            classes, class_to_idx = find_classes(dataset_folder)
-            imgs = make_dataset(dataset_folder, class_to_idx)
-            self.classes = classes
-            self.class_to_idx = class_to_idx
+        dataset_folder = os.path.join(root, type)
+        classes, class_to_idx = find_classes(dataset_folder)
+        imgs = make_dataset(dataset_folder, class_to_idx)
+        self.classes = classes
+        self.class_to_idx = class_to_idx
 
 
         assert len(imgs)>0, "Found 0 images in subfolders of: " + root + "\n"
@@ -529,6 +526,9 @@ class MyDataloaderExt(data.Dataset):
         #     if key == 'gt_depth':
         #         continue
 
+        target_data = None
+        target_data = channels_transformed_np['gt_depth']
+
         num_image_channel,image_channel = self.modality.get_input_image_channel()
         if num_image_channel > 0:
             input_np = self.append_tensor3d(input_np,channels_transformed_np[image_channel])
@@ -540,15 +540,14 @@ class MyDataloaderExt(data.Dataset):
         num_weight_channel, weight_channel = self.modality.get_input_weight_channel()
         if num_weight_channel > 0:
             input_np = self.append_tensor3d(input_np, channels_transformed_np[weight_channel])
+        else:
+            confidence = np.zeros_like(input_np[0,:,:])
+            valid_mask = ((channels_transformed_np['gt_depth'] > 0))
+            confidence[valid_mask] = 1.0
+            input_np = self.append_tensor3d(input_np, confidence)
 
         input_tensor = self.to_tensor(input_np)
-        target_data = None
-        target_data = channels_transformed_np['gt_depth']
-        #np.stack([channels_transformed_np['gt_depth'],channels_transformed_np['normal_x'],channels_transformed_np['normal_y'],channels_transformed_np['normal_z']])
-        # target_data = self.append_tensor3d(target_data,channels_transformed_np['gt_depth'])
-        # target_data = self.append_tensor3d(target_data, channels_transformed_np['normal_x'])
-        # target_data = self.append_tensor3d(target_data, channels_transformed_np['normal_y'])
-        # target_data = self.append_tensor3d(target_data, channels_transformed_np['normal_z'])
+
 
         target_depth_tensor = self.to_tensor(target_data).unsqueeze(0)
 

@@ -6,19 +6,15 @@ from dataloaders.dataloader_ext import MyDataloaderExt,Modality,SeqMyDataloaderE
 #iheight, iwidth = 480, 752 # raw image size
 
 class VISIMDataset(MyDataloaderExt):
-    def __init__(self, root, type, sparsifier=None, modality='rgb', arch='resnet18',depth_divider=1.0,max_gt_depth=math.inf):
+    def __init__(self, root, type, sparsifier=None, modality='rgb', is_resnet = False,depth_divider=1.0,max_gt_depth=math.inf):
         super(VISIMDataset, self).__init__(root, type, sparsifier,max_gt_depth, modality)
         self.depth_divider = depth_divider
-        self.arch = arch
 
-        if 'weightcompnet' in self.arch:
-            self.output_size = (240, 320)
-        elif 'depthcompnet' in self.arch:
-            self.output_size = (240, 320)
-        elif 'resnet' in self.arch:
+
+        if is_resnet:
             self.output_size = (228, 304)
         else:
-            raise (RuntimeError("{} is an unknown arch - visim-dataloader".format(self.arch)))
+            self.output_size = (240, 320)
 
     def train_transform(self, attrib_list):
 
@@ -114,19 +110,15 @@ class VISIMDataset(MyDataloaderExt):
 
 
 class VISIMSeqDataset(SeqMyDataloaderExt):
-    def __init__(self, root, type, sparsifier=None, modality='rgb', arch='resnet18',depth_divider=1.0,max_gt_depth=math.inf):
+    def __init__(self, root, type, sparsifier=None, modality='rgb', is_resnet = False,depth_divider=1.0,max_gt_depth=math.inf):
         super(VISIMSeqDataset, self).__init__(root, type, sparsifier,max_gt_depth, modality)
-        self.depth_divider = depth_divider
-        self.arch = arch
 
-        if 'weightcompnet' in self.arch:
-            self.output_size = (240, 320)
-        elif 'depthcompnet' in self.arch:
-            self.output_size = (240, 320)
-        elif 'resnet' in self.arch:
+        self.depth_divider = depth_divider
+
+        if is_resnet:
             self.output_size = (228, 304)
         else:
-            raise (RuntimeError("{} is an unknown arch - visim-dataloader".format(self.arch)))
+            self.output_size = (240, 320)
 
     def seq_transform(self,attrib_list,is_validation):
 

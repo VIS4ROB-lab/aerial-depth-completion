@@ -135,4 +135,4 @@ class CNN(nn.Module):
         self.cf = cout_d
         
         return xout
-       
+

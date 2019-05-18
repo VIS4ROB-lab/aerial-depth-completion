@@ -9,12 +9,10 @@ class KITTIDataset(MyDataloader):
         self.depth_divider = depth_divider
         self.arch = arch
 
-        if 'depthcompnet' in self.arch:
-            self.output_size = (240, 960)
-        elif 'resnet' in self.arch:
+        if 'resnet' in self.arch:
             self.output_size = (228, 912)
         else:
-            raise (RuntimeError("{} is an unknown arch - visim-dataloader".format(self.arch)))
+            self.output_size = (240, 960)
 
     def train_transform(self, rgb, depth):
         s = np.random.uniform(1.0, 1.5)  # random scaling

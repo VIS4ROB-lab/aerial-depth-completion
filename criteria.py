@@ -422,7 +422,7 @@ class MaskedL1LossSmoothess(nn.Module):
         loss_smooth = second_derivative(pred)
 
         final_loss = diff.abs().mean() + 0.1 * loss_smooth
-        self.loss = [final_loss.cpu().detach().numpy(),loss_smooth.cpu().detach().numpy(),0] # diff.mean() #
+        self.loss = [final_loss.detach().cpu().numpy(),loss_smooth.cpu().detach().numpy(),0] # diff.mean() #
 
 
 
@@ -467,3 +467,26 @@ class MaskedWL1LossSmoothess(nn.Module):
         final_loss = depth_loss + loss_smooth
 
         return final_loss
+
+# class DualLoss(nn.Module):
+#
+#     def __init__(self, net1,net2,weight1):  # ged_train_weights
+#         super(DualLoss, self).__init__()
+#         self.net1 = net1
+#         self.net2 = net2
+#         self.weight1 = weight1
+#
+#     def forward(self,input, pred, target_depth,epoch):
+#         rgbdc = torch.cat([input[:,:3,:,:],pred], dim=1)
+#         new_pred = self.singledc(rgbdc)
+#         result_depth = self.loss_fn(rgbdc,new_pred[:, :1, :, :], target_depth)
+#
+#         self.new_prediction = new_pred
+#         self.loss = self.loss_fn.loss.detach().cpu().numpy()
+#
+#         if self.weight1 > 0:
+#             result_depth_old = self.loss_fn(rgbdc, pred[:, :1, :, :], target_depth)
+#             self.loss[1] = self.loss_fn.loss[0].detach().cpu()
+#             return self.weight1 * result_depth_old + (1-self.weight1 ) * result_depth
+#         return result_depth
+

@@ -553,7 +553,6 @@ class NConvLoss2(nn.Module):
     def __init__(self, singledcnet,lossnet):  # ged_train_weights
         super(NConvLoss2, self).__init__()
         self.singledc = singledcnet
-        #self.singledc.eval()
         self.loss_fn = lossnet
 
     def forward(self,input,pred, target_depth,epoch):
