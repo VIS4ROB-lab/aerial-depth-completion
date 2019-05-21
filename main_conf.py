@@ -1,22 +1,20 @@
 import os
 import sys
 import csv
-import numpy as np
+import time
+
 import math
 import torch
 import torch.backends.cudnn as cudnn
-
+cudnn.benchmark = True
+import GPUtilext
 import torch.optim
 from torchsummary import summary
+from metrics import AverageMeter, Result,ConfidencePixelwiseAverageMeter,ConfidencePixelwiseThrAverageMeter
 
-import guided_ms_net
 
 cudnn.benchmark = True
 
-from model_zoo.s2d_resnet import S2DResNet
-import model_zoo.model_conf as mc
-from dataloaders.dense_to_sparse import UniformSampling, SimulatedStereo
-import criteria
 import utils
 import argparse
 
@@ -24,78 +22,10 @@ import argparse
 # print(args)
 # g_modality = Modality(args.modality)
 
-# fieldnames = ['mse', 'rmse', 'absrel', 'lg10', 'mae',
-#                 'delta1', 'delta2', 'delta3',
-#                 'data_time', 'gpu_time','loss0','loss1','loss2']
+
 # best_result = Result()
 # best_result.set_to_worst()
 
-class ConfidenceDepthFrameworkFactory():
-    def __init__(self):
-        a =1
-
-    def create_dc_model(self,model_arch,pretrained_args,input_type,output_type):
-
-        if pretrained_args == 'resnet':
-            use_resnet_pretrained = True
-        else:
-            use_resnet_pretrained = False
-
-        if model_arch == 'resnet18':
-            #upproj is the best and default in the sparse-to-dense icra 2018 paper
-            model = S2DResNet(layers=18, decoder='upproj', in_channels=len(input_type), out_channels=len(output_type), pretrained=use_resnet_pretrained)
-        elif model_arch == 'nconv-ms':
-            assert output_type == 'rgbdc', 'nconv-ms only accept rgbdc input'
-            #upproj is the best and default in the sparse-to-dense icra 2018 paper
-            model = guided_ms_net.NconvMS()
-
-        else:
-            raise RuntimeError('Model: {} not found.'.format(model_arch))
-
-        return model
-
-    def create_conf_model(self,model_arch,pretrained_args,dc_model):
-
-        in_channels = dc_model.out_feature_channels
-        out_channels = 1
-
-        if model_arch == 'cbr3-c1':
-            model = mc.CBR3C1Confidence(in_channels=in_channels)
-        elif model_arch == 'forward':
-            model = mc.ForwardConfidence(in_channels=in_channels)
-        else:
-            raise RuntimeError('Dataset not found.' +
-                               'The dataset must be either of nyudepthv2 or kitti.')
-
-        return model
-
-    def create_loss(self, criterion, dual=False, weight1=0):
-
-        if criterion == 'l2':
-            loss = mc.MaskedMSELoss()
-        elif criterion == 'l1':
-            loss = mc.MaskedL1Loss()
-        elif criterion == 'il1':
-            loss = mc.InvertedMaskedL1Loss()
-        elif criterion == 'absrel':
-            loss = mc.MaskedAbsRelLoss()
-        if dual:
-            loss = mc.DualLoss(loss, loss, weight1)
-        return loss
-
-    def create_model(self, input_type, dc_arch, dc_weights, conf_arch
-                     , conf_weights, lossdc_arch, lossdc_weights):
-
-        model_dc = create_dc_model(args.dcnet_arch, args.dcnet_pretrained, args.dcnet_modality,output_type,output_size)
-
-        if args.training_mode == 'dc1':
-            model = model_dc
-
-
-        if opt_parameters is None:
-            opt_parameters = model.parameters()
-
-        return model, opt_parameters
 
 
 
@@ -107,7 +37,7 @@ def create_command_parser():
     #image_type_source = ['g', 'rgb','undefined']
     sparse_depth_source = ['kgt','kor','kde','fd','undefined']
     sparse_conf_source = ['bin', 'kw','undefined']
-    training_mode = ['dc1','dc1-ln0','dc1-ln1', 'dc0-cf1-ln0', 'dc1-cf1-ln1', 'dc1-cf1-ln0']
+    training_mode = ['dc1','dc1-ln0','dc1-ln1', 'dc0-cf1-ln0', 'dc1-cf1-ln0', 'dc1-cf1-ln1']
     confnet_exclusive_names = ['cbr3-c1', 'cbr3-cbr1-c1','cbr5-cbr3-cbr1-c1']
     confnet_names = confnet_exclusive_names + ['join','none']
 
@@ -260,65 +190,6 @@ def create_command_parser():
     #     args.max_depth = 0.0
     return parser
 
-def create_data_loaders(data_path,data_type='visim',loader_type='val',arch='',sparsifier_type='uar',num_samples=500,modality='rgb-fd',depth_divider=1,max_depth=-1,max_gt_depth=-1,batch_size=8,workers=8):
-    # Data loading code
-    print("=> creating data loaders ...")
-
-    #legacy compatibility with sparse-to-dense data folder
-    subfolder = os.path.join( data_path, loader_type )
-    # if os.path.exists(subfolder):
-    #     data_path = subfolder
-
-    if not os.path.exists(data_path):
-        raise RuntimeError('Data source does not exit:{}'.format(data_path))
-
-    loader = None
-    dataset = None
-    max_depth = max_depth if max_depth >= 0.0 else np.inf
-    max_gt_depth = max_gt_depth if max_gt_depth >= 0.0 else np.inf
-
-    # sparsifier is a class for generating random sparse depth input from the ground truth
-    sparsifier = None
-
-    if sparsifier_type == UniformSampling.name: #uar
-        sparsifier = UniformSampling(num_samples=num_samples, max_depth=max_depth)
-    elif sparsifier_type == SimulatedStereo.name: #sim_stereo
-        sparsifier = SimulatedStereo(num_samples=num_samples, max_depth=max_depth)
-
-    if data_type == 'kitti':
-        from dataloaders.kitti_dataloader import KITTIDataset
-
-        dataset = KITTIDataset(data_path, type=loader_type,
-            modality=modality, sparsifier=sparsifier, depth_divider=depth_divider, is_resnet= ('resnet' in arch),max_gt_depth=max_gt_depth)
-
-    elif data_type == 'visim':
-        from dataloaders.visim_dataloader import VISIMDataset
-
-        dataset = VISIMDataset(data_path, type=loader_type,
-            modality=modality, sparsifier=sparsifier, depth_divider=depth_divider, is_resnet= ('resnet' in arch),max_gt_depth=max_gt_depth)
-
-    elif data_type == 'visim_seq':
-        from dataloaders.visim_dataloader import VISIMSeqDataset
-        dataset = VISIMSeqDataset(data_path, type=loader_type,
-            modality=modality, sparsifier=sparsifier, depth_divider=depth_divider, is_resnet= ('resnet' in arch),max_gt_depth=max_gt_depth)
-    else:
-        raise RuntimeError('data type not found.' +
-                           'The dataset must be either of kitti, visim or visim_seq.')
-
-    if loader_type == 'val':
-        # set batch size to be 1 for validation
-        loader = torch.utils.data.DataLoader(dataset,
-            batch_size=1, shuffle=False, num_workers=workers, pin_memory=True)
-    elif loader_type == 'train':
-        loader = torch.utils.data.DataLoader(
-            dataset, batch_size=batch_size, shuffle=True,
-            num_workers=workers, pin_memory=True, sampler=None,
-            worker_init_fn=lambda work_id:np.random.seed(work_id))
-            # worker_init_fn ensures different sampling patterns for each data loading thread
-
-    print("=> data loaders created.")
-    return loader, dataset
-
 def main(args):
 
     output_directory = utils.get_output_directory(args)
@@ -464,15 +335,220 @@ def main(args):
             'optimizer' : optimizer,
         }, is_best, epoch, output_directory)
 
+def create_optimizer(optimizer_type, parameters, momentum, weight_decay, lr_init, lr_step, lr_gamma):
+
+    if optimizer_type == 'sgd':
+        optimizer = torch.optim.SGD(params=parameters, lr=lr_init, \
+                                    momentum=momentum, weight_decay=weight_decay)
+    elif optimizer_type == 'adam':
+        optimizer = torch.optim.Adam(params=parameters, lr=lr_init,weight_decay=weight_decay)
+    else:
+        raise RuntimeError('unknow optimizer "{}"'.format(optimizer_type))
+
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=lr_step, gamma=lr_gamma)
+
+    return optimizer, scheduler
+
+def train(train_loader, model, criterion, optimizer,output_folder,  epoch):
+
+    average_meter = [AverageMeter(),AverageMeter()]
+
+    model.train()  # switch to train mode
+    end = time.time()
+    num_total_samples = len(train_loader)
+    for i, (input, target, scale) in enumerate(train_loader):
+
+        torch.cuda.synchronize()
+        data_time = time.time() - end
+
+        # compute pred
+        end = time.time()
+
+        input, target = input.cuda(), target.cuda()
+        target_depth = target[:, 0:1, :, :]
+        prediction = model(input)
+        if prediction[2] is not None: #d1,c1,d2
+            loss = criterion(input, prediction[0][:, 0:1, :, :], prediction[2][:, 0:1, :, :], target_depth, epoch)
+        else:
+            loss = criterion(input, prediction[0][:, 0:1, :, :], target_depth, epoch)
+
+        if loss is None or torch.isnan(loss) or torch.isinf(loss):
+            print('ignoring image, no valid pixel')
+            continue
+
+        optimizer.zero_grad()
+        loss.backward()  # compute gradient and do SGD step
+        optimizer.step()
+
+        torch.cuda.synchronize()
+        gpu_time = time.time() - end
+
+        for cb in range(prediction[0].size(0)):
+            prediction[0][cb, :, :, :] *= scale[cb]
+            if prediction[2] is not None:
+                prediction[2][cb, :, :, :] *= scale[cb]
+            target_depth[cb, :, :, :] *= scale[cb]
+
+        # measure accuracy and record loss
+        result = [Result(),Result()]
+        result[0].evaluate(prediction[0][:, 0:1, :, :].data, target_depth.data)
+        average_meter[0].update(result[0], gpu_time, data_time, criterion.loss, input.size(0))
+        if prediction[2] is not None:
+            result[1].evaluate(prediction[2][:, 0:1, :, :].data, target_depth.data)
+            average_meter[1].update(result[1], gpu_time, data_time, criterion.loss, input.size(0))
 
 
+        end = time.time()
+
+        if (i + 1) % 10 == 0:
+            print_error(num_total_samples, average_meter[0].average(), result[0], criterion.loss, data_time, gpu_time, i, epoch)
+            if prediction[2] is not None:
+                print_error(num_total_samples, average_meter[1].average(), result[1], criterion.loss, data_time, gpu_time, i, epoch)
+
+    report_epoch_error(output_folder+'/train.csv', epoch, average_meter[0].average())
+    if prediction[2] is not None:
+        report_epoch_error(output_folder+'/train.csv', epoch, average_meter[1].average())
 
 
-def train(train_loader, model, criterion, optimizer, epoch):
-    return
+def report_epoch_error(filename_csv, epoch, avg):
+    fieldnames = ['epoch', 'mse', 'rmse', 'absrel', 'lg10', 'mae',
+                  'delta1', 'delta2', 'delta3',
+                  'data_time', 'gpu_time', 'loss0', 'loss1', 'loss2']
+    with open(filename_csv, 'a') as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer.writerow({'epoch': epoch, 'mse': avg.mse, 'rmse': avg.rmse, 'absrel': avg.absrel, 'lg10': avg.lg10,
+                         'mae': avg.mae, 'delta1': avg.delta1, 'delta2': avg.delta2, 'delta3': avg.delta3,
+                         'gpu_time': avg.gpu_time, 'data_time': avg.data_time, 'loss0': avg.loss0, 'loss1': avg.loss1,
+                         'loss2': avg.loss2})
 
-def validate(val_loader, model,criterion, epoch, write_to_file=True):
-    return
+
+def print_error(num_total_samples, average, result, loss, data_time, gpu_time, i, epoch):
+    # print('=> output: {}'.format(output_directory))
+    print('Train Epoch: {0} [{1}/{2}]\t'
+          't_Data={data_time:.3f}({average.data_time:.3f}) '
+          't_GPU={gpu_time:.3f}({average.gpu_time:.3f})\n\t'
+          'RMSE={result.rmse:.2f}({average.rmse:.2f}) '
+          'MAE={result.mae:.2f}({average.mae:.2f}) '
+          'Delta1={result.delta1:.3f}({average.delta1:.3f}) '
+          'REL={result.absrel:.3f}({average.absrel:.3f}) '
+          'Lg10={result.lg10:.3f}({average.lg10:.3f}) '
+          'Loss={losses[0]}/{losses[1]}/{losses[2]} '.format(
+        epoch, i + 1, num_total_samples, data_time=data_time,
+        gpu_time=gpu_time, result=result, average=average, losses=loss))
+    attrlist = [[
+        {'attr': 'id', 'name': 'ID'},
+        {'attr': 'load', 'name': 'GPU util.', 'suffix': '%', 'transform': lambda x: x * 100, 'precision': 0},
+        {'attr': 'memoryUtil', 'name': 'Memory util.', 'suffix': '%', 'transform': lambda x: x * 100,
+         'precision': 0}],
+        [{'attr': 'memoryTotal', 'name': 'Memory total', 'suffix': 'MB', 'precision': 0},
+         {'attr': 'memoryUsed', 'name': 'Memory used', 'suffix': 'MB', 'precision': 0},
+         {'attr': 'memoryFree', 'name': 'Memory free', 'suffix': 'MB', 'precision': 0}]]
+    GPUtilext.showUtilization(attrList=attrlist)
+
+
+class ResultSampleImage():
+    def __init__(self,output_directory,epoch, num_samples, total_images):
+        self.normal_net = None
+        self.image = None
+        self.num_samples = num_samples
+        self.sample_step = math.floor(total_images / float(num_samples))
+        self.filename = output_directory + '/comparison_' + str(epoch) + '.png'
+
+    def save(self,input,prediction,target,to_disk=False):
+        rgb = input[0,:3,:,:]
+        input_depth = input[0,3:4,:,:]
+        input_conf =  input[0,4:5,:,:]
+        in_gt_depth = target[0,:1,:,:]
+        out_depth1 = prediction[0][0,:1,:,:]
+        if prediction[1] is not None:
+            out_conf1 = prediction[1][0,:1,:,:]
+        else:
+            out_conf1 = None
+
+        if prediction[2] is not None:
+            out_depth2 = prediction[2][0,:1,:,:]
+        else:
+            out_depth2 = None
+
+
+        row = utils.merge_into_row_with_gt2(rgb, input_depth,input_conf, in_gt_depth , out_depth1, out_conf1, out_depth2)
+        if(self.image is not None):
+            self.image = utils.add_row(self.image, row)
+        else:
+            self.image = row
+
+        if to_disk:
+            utils.save_image(self.image, self.filename)
+
+
+    def update(self,i,input,prediction,target):
+
+        if (i % self.sample_step == 0):
+            self.save(input, prediction, target)
+            if (i % (4*self.sample_step) == 0):
+                self.save(input,prediction,target,True)
+
+def validate(val_loader, model,criterion, epoch, output_folder=None):
+    average_meter = [AverageMeter(), AverageMeter()]
+
+    model.train()  # switch to train mode
+    end = time.time()
+    num_total_samples = len(val_loader)
+    rsi = ResultSampleImage(output_folder,epoch,40,num_total_samples)
+    for i, (input, target, scale) in enumerate(val_loader):
+
+        torch.cuda.synchronize()
+        data_time = time.time() - end
+
+        # compute pred
+        end = time.time()
+
+        input, target = input.cuda(), target.cuda()
+        target_depth = target[:, 0:1, :, :]
+        prediction = model(input)
+        if prediction[2] is not None:  # d1,c1,d2
+            loss = criterion(input, prediction[0][:, 0:1, :, :], prediction[2][:, 0:1, :, :], target_depth, epoch)
+        else:
+            loss = criterion(input, prediction[0][:, 0:1, :, :], target_depth, epoch)
+
+        if loss is None or torch.isnan(loss) or torch.isinf(loss):
+            print('ignoring image, no valid pixel')
+            continue
+
+        torch.cuda.synchronize()
+        gpu_time = time.time() - end
+
+        for cb in range(prediction[0].size(0)):
+            prediction[0][cb, :, :, :] *= scale[cb]
+            if prediction[2] is not None:
+                prediction[2][cb, :, :, :] *= scale[cb]
+            target_depth[cb, :, :, :] *= scale[cb]
+
+        # measure accuracy and record loss
+        result = [Result(), Result()]
+        result[0].evaluate(prediction[0][:, 0:1, :, :].data, target_depth.data)
+        average_meter[0].update(result[0], gpu_time, data_time, criterion.loss, input.size(0))
+        if prediction[2] is not None:
+            result[1].evaluate(prediction[2][:, 0:1, :, :].data, target_depth.data)
+            average_meter[1].update(result[1], gpu_time, data_time, criterion.loss, input.size(0))
+
+        end = time.time()
+
+        if (i + 1) % 10 == 0:
+            print_error(num_total_samples, average_meter[0].average(), result[0], criterion.loss, data_time, gpu_time, i,
+                        epoch)
+            if prediction[2] is not None:
+                print_error(num_total_samples, average_meter[1].average(), result[1], criterion.loss, data_time, gpu_time, i,
+                            epoch)
+
+        rsi.update(i, input, prediction, target_depth)
+
+    report_epoch_error(output_folder+'/val.csv', epoch, average_meter[0].average())
+    if prediction[2] is not None:
+        report_epoch_error(output_folder+'/val.csv', epoch, average_meter[1].average())
+
+    # return rsi.get_result()
+
 
 if __name__ == '__main__':
 

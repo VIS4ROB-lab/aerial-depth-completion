@@ -2,48 +2,95 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from nconv_sd import CNN as unguided_net
+from model_zoo.s2d_resnet import S2DResNet
+import guided_ms_net
 
 
-# class ComposerDepthConfidenceNet(nn.Module):
-#
-#
-#     def append_tensor3d(self,input_np,value):
-#         if not isinstance(input_np, np.ndarray):  # first element
-#             if value.ndim == 2:
-#                 input_np = np.expand_dims(value, axis=0)
-#             elif value.ndim == 3:
-#                 input_np = value
-#         else:  # 2nd ,3rd ...
-#             if value.ndim == 2:
-#                 input_np = np.append(input_np, np.expand_dims(value, axis=0), axis=0)
-#             elif value.ndim == 3:
-#                 input_np = np.append(input_np, value, axis=0)
-#             else:
-#                 raise RuntimeError('value should be ndarray with 2 or 3 dimensions. Got {}'.format(value.ndim))
-#         return input_np
-#
-#     def __init__(self, depthnet,confnet,depth_input_type,conf_input_type):
-#         super(ComposerDepthConfidenceNet, self).__init__()
-#         self.depthnet = depthnet
-#         self.confnet = confnet
-#         self.depth_input_type = depth_input_type
-#         self.conf_input_type = conf_input_type
-#
-#     def forward(self, x):
-#         depth = self.depthnet(x)
-#
-#         conf_input = None
-#         if self.depth_input_type == self.conf_input_type:
-#             conf_input = x
-#         else:
-#             if 'rgb' in self.conf_input_type:
-#                 self.append_tensor3d()
-#
-#         conf_features = self.singledc.conf_features
-#         curr_confidence = torch.sigmoid(self.curr_confidence_stack(conf_features))
-#         return torch.cat((depth,curr_confidence), 1)
-#
-#
+class ConfidenceDepthFrameworkFactory():
+    def __init__(self):
+        a =1
+
+    def create_dc_model(self,model_arch,pretrained_args,input_type,output_type):
+
+        if pretrained_args == 'resnet':
+            use_resnet_pretrained = True
+        else:
+            use_resnet_pretrained = False
+
+        if model_arch == 'resnet18':
+            #upproj is the best and default in the sparse-to-dense icra 2018 paper
+            model = S2DResNet(layers=18, decoder='upproj', in_channels=len(input_type), out_channels=len(output_type), pretrained=use_resnet_pretrained)
+        elif model_arch == 'nconv-ms':
+            assert output_type == 'rgbdc', 'nconv-ms only accept rgbdc input'
+            #upproj is the best and default in the sparse-to-dense icra 2018 paper
+            model = guided_ms_net.NconvMS()
+
+        else:
+            raise RuntimeError('Model: {} not found.'.format(model_arch))
+
+        return model
+
+    def create_conf_model(self,model_arch,pretrained_args,dc_model):
+
+        in_channels = dc_model.out_feature_channels
+        out_channels = 1
+
+        if model_arch == 'cbr3-c1':
+            model = CBR3C1Confidence(in_channels=in_channels)
+        elif model_arch == 'forward':
+            model = ForwardConfidence(in_channels=in_channels)
+        else:
+            raise RuntimeError('Dataset not found.' +
+                               'The dataset must be either of nyudepthv2 or kitti.')
+
+        return model
+
+    def create_loss(self, criterion, dual=False, weight1=0):
+
+        if criterion == 'l2':
+            loss = MaskedMSELoss()
+        elif criterion == 'l1':
+            loss = MaskedL1Loss()
+        elif criterion == 'il1':
+            loss = InvertedMaskedL1Loss()
+        elif criterion == 'absrel':
+            loss = MaskedAbsRelLoss()
+        if dual:
+            loss = DualLoss(loss, loss, weight1)
+        return loss
+
+    def create_model(self, input_type, overall_arch, dc_arch, dc_weights, conf_arch=None
+                     , conf_weights=None, lossdc_arch=None, lossdc_weights=None):
+
+
+        cdfmodel = ConfidenceDepthFrameworkModel()
+
+        cdfmodel.dc_model = None
+        cdfmodel.conf_model = None
+        cdfmodel.loss_dc_model = None
+        cdfmodel.overall_arch = overall_arch
+
+        if 'dc' in overall_arch:
+
+            if 'only' in overall_arch or 'cf' in overall_arch:
+                output_type = 'd'
+            else:
+                output_type = 'dc'
+
+            cdfmodel.dc_model = self.create_dc_model(dc_arch, dc_weights, input_type , output_type)
+
+        if 'cf' in overall_arch:
+            cdfmodel.conf_model = self.create_conf_model(model_arch=conf_arch, pretrained_args=conf_weights, dc_model=cdfmodel.dc_model)
+
+        if 'ln' in overall_arch:
+            cdfmodel.loss_dc_model = self.create_dc_model(model_arch=lossdc_arch, pretrained_args=lossdc_weights, input_type='rgbdc',
+                                                output_type='d')
+
+        cdfmodel.input_size = len(input_type)
+
+
+
+        return cdfmodel
 
 
 def init_weights(m):
@@ -69,7 +116,8 @@ class ConfidenceDepthFrameworkModel(torch.nn.Module):
         self.dc_model = None
         self.conf_model = None
         self.loss_dc_model = None
-        self.input_size = 4 #acceptable inputs are 3:rgb, 4:rgbd, 5:rgbdc
+        self.overall_arch = ''
+        self.input_size = 0 #acceptable inputs are 3:rgb, 4:rgbd, 5:rgbdc
 
     def forward(self, input): #input rgbdc
         dc_x = input[:,:self.input_size,:,:]
@@ -88,6 +136,23 @@ class ConfidenceDepthFrameworkModel(torch.nn.Module):
             depth2 = None
 
         return depth1, conf1, depth2
+
+    def opt_params(self):
+        opt_parameters = []
+
+        if 'dc1' in self.overall_arch:
+            assert self.dc_model is not None
+            opt_parameters += self.dc_model.parameters()
+
+        if 'cf1' in self.overall_arch:
+            assert self.conf_model is not None
+            opt_parameters += self.conf_model.parameters()
+
+        if 'ln1' in self.overall_arch:
+            assert self.loss_dc_model is not None
+            opt_parameters += self.loss_dc_model.parameters()
+        return opt_parameters
+
 
 ###########################################
 #Confidence nets
@@ -399,7 +464,7 @@ class MaskedMSELoss(nn.Module):
 
         final_loss = (diff ** 2).mean()
 
-        self.loss = [final_loss.detach().cpu().numpy(),0,0]
+        self.loss = [final_loss.item(),0,0]
 
         return final_loss
 
@@ -418,7 +483,7 @@ class InvertedMaskedL1Loss(nn.Module):
         diff = ((1.0/(depth_target[valid_mask])) - (1.0/(depth_prediction[valid_mask]))).abs()
         final_loss = diff.mean()
 
-        self.loss = [final_loss.cpu().detach().numpy(),0,0]
+        self.loss = [final_loss.item(),0,0]
 
         return final_loss
 
@@ -442,7 +507,7 @@ class MaskedAbsRelLoss(nn.Module):
 
         final_loss = abs_rel_diff.mean()
 
-        self.loss = [final_loss.cpu().detach().numpy(),0,0]
+        self.loss = [final_loss.item(),0,0]
 
         return final_loss
 
@@ -462,6 +527,6 @@ class MaskedL1Loss(nn.Module):
         diff = diff[valid_mask]
 
         final_loss = diff.abs().mean()
-        self.loss = [final_loss.cpu().detach().numpy(),0,0]
+        self.loss = [final_loss.item(),0,0]
 
         return final_loss
