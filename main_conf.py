@@ -335,7 +335,7 @@ def main(args):
             'optimizer' : optimizer,
         }, is_best, epoch, output_directory)
 
-def create_optimizer(optimizer_type, parameters, momentum, weight_decay, lr_init, lr_step, lr_gamma):
+def create_optimizer(optimizer_type, parameters, momentum=0, weight_decay=0, lr_init=10e-4, lr_step=5, lr_gamma=0.1):
 
     if optimizer_type == 'sgd':
         optimizer = torch.optim.SGD(params=parameters, lr=lr_init, \
@@ -348,6 +348,38 @@ def create_optimizer(optimizer_type, parameters, momentum, weight_decay, lr_init
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=lr_step, gamma=lr_gamma)
 
     return optimizer, scheduler
+
+def get_optimizer_state(optimizer, scheduler):
+    state = {}
+    state['optimizer_type'] = ('adam' if isinstance(optimizer,torch.optim.Adam) else 'sgd')
+    state['optimizer_state'] = optimizer.state_dict()
+    state['scheduler_state'] = scheduler.state_dict()
+    return state
+
+def create_optimizer_fromstate(parameters,state):
+    optimizer, scheduler = create_optimizer(state['optimizer_type'],parameters)
+    optimizer.load_state_dict(state['optimizer_state'])
+    scheduler.load_state_dict(state['scheduler_state'])
+    return optimizer, scheduler
+
+def resume(filename, factory):
+    checkpoint = torch.load(filename)
+    loss, loss_def = factory.create_loss_fromstate(checkpoint['loss_definition'])
+    cdfmodel = factory.create_model_from_state(checkpoint['model_state'])
+    optimizer, scheduler = create_optimizer_fromstate(cdfmodel.opt_params(), checkpoint['optimizer_state'])
+
+    return cdfmodel,loss,loss_def,optimizer,scheduler
+
+
+def save_checkpoint(factory,cdfmodel,loss_definition,optimizer, scheduler,is_best,epoch,output_directory):
+
+    model_state = factory.get_state(cdfmodel)
+    optimizer_state = get_optimizer_state(optimizer, scheduler)
+    checkpoint = {  'model_state': model_state,
+                    'optimizer_state': optimizer_state,
+                    'loss_definition':loss_definition}
+    utils.save_checkpoint(checkpoint,is_best,epoch,output_directory)
+
 
 def train(train_loader, model, criterion, optimizer,output_folder,  epoch):
 
@@ -543,11 +575,12 @@ def validate(val_loader, model,criterion, epoch, output_folder=None):
 
         rsi.update(i, input, prediction, target_depth)
 
-    report_epoch_error(output_folder+'/val.csv', epoch, average_meter[0].average())
+    final_result = average_meter[0].average()
+    report_epoch_error(output_folder+'/val.csv', epoch, final_result)
     if prediction[2] is not None:
         report_epoch_error(output_folder+'/val.csv', epoch, average_meter[1].average())
 
-    # return rsi.get_result()
+    return final_result
 
 
 if __name__ == '__main__':

@@ -57,7 +57,11 @@ class ConfidenceDepthFrameworkFactory():
             loss = MaskedAbsRelLoss()
         if dual:
             loss = DualLoss(loss, loss, weight1)
-        return loss
+        loss_definition = {'criterion':criterion, 'dual':dual, 'weight1':weight1}
+        return loss, loss_definition
+
+    def create_loss_fromstate(self,definition):
+        return self.create_loss(definition['criterion'],definition['dual'],definition['weight1'])
 
     def create_model(self, input_type, overall_arch, dc_arch, dc_weights, conf_arch=None
                      , conf_weights=None, lossdc_arch=None, lossdc_weights=None):
@@ -66,9 +70,14 @@ class ConfidenceDepthFrameworkFactory():
         cdfmodel = ConfidenceDepthFrameworkModel()
 
         cdfmodel.dc_model = None
+        cdfmodel.dc_arch = dc_arch
         cdfmodel.conf_model = None
+        cdfmodel.conf_arch = conf_arch
         cdfmodel.loss_dc_model = None
+        cdfmodel.loss_dc_arch = lossdc_arch
         cdfmodel.overall_arch = overall_arch
+        cdfmodel.input_type = input_type
+
 
         if 'dc' in overall_arch:
 
@@ -84,13 +93,35 @@ class ConfidenceDepthFrameworkFactory():
 
         if 'ln' in overall_arch:
             cdfmodel.loss_dc_model = self.create_dc_model(model_arch=lossdc_arch, pretrained_args=lossdc_weights, input_type='rgbdc',
-                                                output_type='d')
+                                                          output_type='d')
 
         cdfmodel.input_size = len(input_type)
-
-
-
         return cdfmodel
+
+    def get_state(self,cdfmodel):
+
+        state = {'input_type':cdfmodel.input_type,
+                 'overall_arch': cdfmodel.overall_arch,
+                 'dc_arch': cdfmodel.dc_arch,
+                 'dc_weights': cdfmodel.dc_model.state_dict(),
+                 'conf_arch': cdfmodel.conf_arch,
+                 'conf_weights': cdfmodel.conf_model.state_dict(),
+                 'loss_dc_arch': cdfmodel.loss_dc_arch,
+                 'lossdc_weights': cdfmodel.loss_dc_model.state_dict()
+                 }
+        return state
+
+    def create_model_from_state(self,state):
+        return self.create_model(state['input_type'],
+                                state['overall_arch'],
+                                state['dc_arch'],
+                                state['dc_weights'],
+                                state['conf_arch'],
+                                state['conf_weights'],
+                                state['loss_dc_arch'],
+                                state['lossdc_weights'])
+
+
 
 
 def init_weights(m):
