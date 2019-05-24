@@ -523,7 +523,7 @@ class ResultSampleImage():
 def validate(val_loader, model,criterion, epoch, output_folder=None):
     average_meter = [AverageMeter(), AverageMeter()]
 
-    model.train()  # switch to train mode
+    model.eval()  # switch to train mode
     end = time.time()
     num_total_samples = len(val_loader)
     rsi = ResultSampleImage(output_folder,epoch,40,num_total_samples)
