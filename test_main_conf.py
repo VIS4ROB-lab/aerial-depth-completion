@@ -2,7 +2,7 @@
 import main_conf
 import dataloaders.dataloader_factory as df
 import model_zoo.model_conf as mc
-
+import torch
 import math
 
 
@@ -62,20 +62,20 @@ def test_raw():
 # def save_checkpoint(cdfmodel, optimizer,scheduler, filename):
 
 
+
 if __name__ == '__main__':
     # service.py executed as script
     # do something
     print('hello')
 
-    val_loader,_ = df.create_data_loaders('/media/lucas/lucas-ds2-1tb/dataset_small_v11',loader_type='val')
-    train_loader,_ = df.create_data_loaders('/media/lucas/lucas-ds2-1tb/dataset_small_v11',loader_type='train')
+    val_loader,_ = df.create_data_loaders('/media/lucas/lucas-ds2-1tb/dataset_small_v11',loader_type='val',batch_size=1)
+    train_loader,_ = df.create_data_loaders('/media/lucas/lucas-ds2-1tb/dataset_small_v11',loader_type='train',batch_size=32)
 
     cdf =  mc.ConfidenceDepthFrameworkFactory()
     cdfmodel = cdf.create_model('rgbd','dc1-cf1-ln1','resnet18',None,'cbr3-c1',None,'resnet18',None)
-    cdfmodel = cdfmodel.cuda()
+    cdfmodel,opt_parameters = cdf.to_device(cdfmodel)
 
-    optimizer, scheduler = main_conf.create_optimizer('adam',cdfmodel.opt_params(),0,0,0.0001,5,0.1)
-
+    optimizer, scheduler = main_conf.create_optimizer('adam',opt_parameters,0,0,0.00001,100,0.1)
 
     loss,loss_definition = cdf.create_loss('l2',True,0.5)
     # main_conf.save_checkpoint(cdf,cdfmodel,loss_definition,optimizer,scheduler,True,epoch,output_directory)
@@ -103,11 +103,7 @@ if __name__ == '__main__':
         is_best = epoch_result.rmse < best_result
         if is_best:
             best_result = epoch_result.rmse
-            with open(output_directory+'/best_result.txt', 'w') as txtfile:
-                txtfile.write(
-                    "epoch={}\nmse={:.3f}\nrmse={:.3f}\nabsrel={:.3f}\nlg10={:.3f}\nmae={:.3f}\ndelta1={:.3f}\nt_gpu={:.4f}\n".
-                    format(epoch, epoch_result.mse, epoch_result.rmse, epoch_result.absrel, epoch_result.lg10, epoch_result.mae, epoch_result.delta1,
-                           epoch_result.gpu_time))
+            main_conf.report_top_result(output_directory + '/best_result.txt', epoch, epoch_result)
             # if img_merge is not None:
             #     img_filename = output_directory + '/comparison_best.png'
             #     utils.save_image(img_merge, img_filename)
@@ -115,14 +111,4 @@ if __name__ == '__main__':
         main_conf.save_checkpoint(cdf, cdfmodel, loss_definition, optimizer, scheduler, is_best, epoch, output_directory)
 
 
-    # for epoch in range(1, 10):
-    #     for i, (input, target, scale) in enumerate(train_loader):
-    #         input_cu = input.cuda()
-    #         target_cu = target.cuda()
-    #         d1, c1, d2 = cdfmodel(input_cu[:,:4,:,:])
-    #         error = loss( input_cu[:,3:4,:,:], d1, d2, target_cu, 0)
-    #         print(loss.loss)
-    #         error.backward()
-    #         print('.')
-    #         optimizer.step()
-    #     scheduler.step(epoch)
+

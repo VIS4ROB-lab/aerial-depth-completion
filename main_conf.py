@@ -441,7 +441,13 @@ def train(train_loader, model, criterion, optimizer,output_folder,  epoch):
     if prediction[2] is not None:
         report_epoch_error(output_folder+'/train.csv', epoch, average_meter[1].average())
 
-
+def report_top_result(filename_csv,epoch,epoch_result):
+    with open(filename_csv, 'w') as txtfile:
+        txtfile.write(
+            "epoch={}\nmse={:.3f}\nrmse={:.3f}\nabsrel={:.3f}\nlg10={:.3f}\nmae={:.3f}\ndelta1={:.3f}\nt_gpu={:.4f}\n".
+                format(epoch, epoch_result.mse, epoch_result.rmse, epoch_result.absrel, epoch_result.lg10,
+                       epoch_result.mae, epoch_result.delta1,
+                       epoch_result.gpu_time))
 def report_epoch_error(filename_csv, epoch, avg):
     fieldnames = ['epoch', 'mse', 'rmse', 'absrel', 'lg10', 'mae',
                   'delta1', 'delta2', 'delta3',
@@ -555,6 +561,7 @@ def validate(val_loader, model,criterion, epoch, output_folder=None):
             if prediction[2] is not None:
                 prediction[2][cb, :, :, :] *= scale[cb]
             target_depth[cb, :, :, :] *= scale[cb]
+            input[cb, 3:4, :, :] *= scale[cb]
 
         # measure accuracy and record loss
         result = [Result(), Result()]

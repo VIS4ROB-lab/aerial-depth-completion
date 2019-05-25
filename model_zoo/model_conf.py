@@ -98,6 +98,22 @@ class ConfidenceDepthFrameworkFactory():
         cdfmodel.input_size = len(input_type)
         return cdfmodel
 
+    def to_device(self, cdfmodel):
+        gpu_count = torch.cuda.device_count()
+        opt_parameters = None
+        if gpu_count > 0:
+            cdfmodel.cuda()
+            if gpu_count > 1:
+                cdfmodel = torch.nn.DataParallel(cdfmodel)
+                opt_parameters = cdfmodel.module.opt_params()
+        else:
+            cdfmodel.cpu()
+
+        if opt_parameters is None:
+            opt_parameters = cdfmodel.opt_params()
+
+        return cdfmodel, opt_parameters
+
     def get_state(self,cdfmodel):
 
         state = {'input_type':cdfmodel.input_type,

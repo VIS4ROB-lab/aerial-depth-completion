@@ -532,17 +532,22 @@ class MyDataloaderExt(data.Dataset):
         num_image_channel,image_channel = self.modality.get_input_image_channel()
         if num_image_channel > 0:
             input_np = self.append_tensor3d(input_np,channels_transformed_np[image_channel])
+        else:
+            raise RuntimeError('rgb channel expected')
 
         num_depth_channel, depth_channel = self.modality.get_input_depth_channel()
         if num_depth_channel > 0:
             input_np = self.append_tensor3d(input_np, channels_transformed_np[depth_channel])
+        else:
+            zeros = np.zeros_like(input_np[0, :, :])
+            input_np = self.append_tensor3d(input_np, zeros)
 
         num_weight_channel, weight_channel = self.modality.get_input_weight_channel()
         if num_weight_channel > 0:
             input_np = self.append_tensor3d(input_np, channels_transformed_np[weight_channel])
         else:
             confidence = np.zeros_like(input_np[0,:,:])
-            valid_mask = ((channels_transformed_np['gt_depth'] > 0))
+            valid_mask = ((input_np[3,:,:] > 0))
             confidence[valid_mask] = 1.0
             input_np = self.append_tensor3d(input_np, confidence)
 

@@ -68,7 +68,6 @@ class VISIMDataset(MyDataloaderExt):
         if 'grey' in attrib_np:
             attrib_np['grey'] = np.expand_dims(np.asfarray(attrib_np['grey'], dtype='float') / 255, axis=0)
 
-
         return attrib_np
 
     def val_transform(self,  attrib_list):
