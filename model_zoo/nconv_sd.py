@@ -11,7 +11,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
-from nconv import NConv2d
+from model_zoo.nconv import NConv2d
 
 
 class CNN(nn.Module):

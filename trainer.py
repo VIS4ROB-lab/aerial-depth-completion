@@ -4,6 +4,7 @@ import csv
 import time
 
 import math
+import utils
 import torch
 import torch.backends.cudnn as cudnn
 cudnn.benchmark = True
@@ -15,22 +16,11 @@ from metrics import AverageMeter, Result,ConfidencePixelwiseAverageMeter,Confide
 
 cudnn.benchmark = True
 
-import utils
-import argparse
-
-# args = utils.parse_command()
-# print(args)
-# g_modality = Modality(args.modality)
-
-
-# best_result = Result()
-# best_result.set_to_worst()
-
-
-
 
 
 def create_command_parser():
+
+    import argparse
 
     model_names = ['resnet18', 'udepthcompnet18','erfdepthcompnet','gms_depthcompnet','ged_depthcompnet']
     model_input_type = ['d','dw','c','cd','cdw']
@@ -50,8 +40,6 @@ def create_command_parser():
     opt_names = ['sgd', 'adam']
     from dataloaders.dense_to_sparse import UniformSampling, SimulatedStereo
     sparsifier_names = [x.name for x in [UniformSampling, SimulatedStereo]]
-    from models import Decoder
-    decoder_names = Decoder.names
 
     parser = argparse.ArgumentParser(description='Confidence Depth Completion')
 
@@ -85,10 +73,6 @@ def create_command_parser():
 
     parser.add_argument('--lossnet_pretrained', default='none', type=str, metavar='PATH',
                         help='path to pretraining checkpoint (default: none)')
-
-    # only useful for resnet
-    parser.add_argument('--decoder', '-d', metavar='DECODER', default='deconv3', choices=decoder_names,
-                        help='decoder: ' + ' | '.join(decoder_names) + ' (default: deconv2)')
 
     #input data
     parser.add_argument('--data-type', metavar='DATA', default='visim',
@@ -190,150 +174,7 @@ def create_command_parser():
     #     args.max_depth = 0.0
     return parser
 
-def main(args):
 
-    output_directory = utils.get_output_directory(args)
-    # evaluation mode
-    start_epoch = 0
-    if args.evaluate:
-    #     assert os.path.isfile(args.evaluate), \
-    #     "=> no best model found at '{}'".format(args.evaluate)
-    #     print("=> loading best model '{}'".format(args.evaluate))
-    #     checkpoint = torch.load(args.evaluate)
-    #     output_directory = os.path.dirname(args.evaluate)
-    #     old_args = args
-    #     args = checkpoint['args']
-    #     args.data_path = old_args.data_path
-    #     start_epoch = checkpoint['epoch'] + 1
-    #     best_result = checkpoint['best_result']
-    #     model = checkpoint['model']
-    #     print("=> loaded best model (epoch {})".format(checkpoint['epoch']))
-    #     _, val_loader = create_data_loaders(args)
-    #     args.evaluate = True
-    #     validate(val_loader, model,None, checkpoint['epoch'], write_to_file=False)
-         return
-
-    # optionally resume from a checkpoint
-    elif args.resume:
-        a = 1
-        # if args.resume == 'continue' or args.resume == 'best':
-        #     if args.resume == 'continue':
-        #         pattern = 'checkpoint-*.pth.tar'
-        #     if args.resume == 'best':
-        #         pattern = 'model_best.pth.tar'
-        #
-        #     filename_regex = os.path.join(output_directory,pattern)
-        #     possibilities = glob.glob(filename_regex)
-        #     if len(possibilities) > 0 :
-        #         possibilities.sort(reverse=True)
-        #         args.resume = possibilities[0]
-        #     else:
-        #         raise RuntimeError("No checkpoint found at '{}'".format(output_directory))
-        #
-        #
-        # assert os.path.isfile(args.resume), \
-        #     "=> no checkpoint found at '{}'".format(args.resume)
-        # print("=> loading checkpoint '{}'".format(args.resume))
-        # checkpoint = torch.load(args.resume)
-        # old_args = args
-        # args = checkpoint['args']
-        # args.data_path = old_args.data_path
-        # start_epoch = checkpoint['epoch'] + 1
-        # best_result = checkpoint['best_result']
-        # model = checkpoint['model']
-        # optimizer = checkpoint['optimizer']
-        # output_directory = os.path.dirname(os.path.abspath(args.resume))
-        # print("=> loaded checkpoint (epoch {})".format(checkpoint['epoch']))
-        # train_loader, val_loader = create_data_loaders(args)
-        # args.resume = True
-
-    # create new model
-    else:
-
-
-        criterion = create_loss(args)
-        train_loader, val_loader = create_data_loaders(args)
-        model, opt_parameters = create_model(args,val_loader)
-
-        print("=> creating Model ({}-{}-{}) ...".format(args.arch, args.decoder, args.depth_weight_head_type))
-        in_channels = g_modality.num_channels()
-        opt_parameters = None
-
-        print("=> model created. GPUS:{}".format(torch.cuda.device_count()))
-        if args.optimizer == 'sgd':
-            optimizer = torch.optim.SGD(opt_parameters, args.lr, \
-                                        momentum=args.momentum, weight_decay=args.weight_decay)
-        elif args.optimizer == 'adam':
-            optimizer = torch.optim.Adam(opt_parameters, args.lr)
-        else:
-            raise RuntimeError ('unknow optimizer "{}"'.format(args.optimizer))
-
-        if torch.cuda.device_count() > 1 :
-            model = torch.nn.DataParallel(model) # for multi-gpu training
-        model = model.cuda()
-        summary(model,(4,240,320))
-
-    # define loss function (criterion) and optimizer
-
-
-
-
-
-
-
-
-    # create results folder, if not already exists
-
-    if not os.path.exists(output_directory):
-        os.makedirs(output_directory)
-    train_csv = os.path.join(output_directory, 'train.csv')
-    test_csv = os.path.join(output_directory, 'test.csv')
-    best_txt = os.path.join(output_directory, 'best.txt')
-    params_log = os.path.join(output_directory, 'params.txt')
-
-    # create new csv files with only header
-    if not args.resume:
-        with open(params_log, 'w') as paramsfile:
-            for arg, value in sorted(vars(args).items()):
-                if isinstance(value,torch.nn.Module):
-                    value = 'nn.Module argument'
-                paramsfile.write("{}: {}\n".format(arg, value))
-
-
-        with open(train_csv, 'w') as csvfile:
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            writer.writeheader()
-        with open(test_csv, 'w') as csvfile:
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            writer.writeheader()
-
-    for epoch in range(start_epoch, args.epochs):
-        utils.adjust_learning_rate(optimizer, epoch, args.lr,args.lrs,args.lrm)
-        print('#### lr: {}'.format(optimizer.param_groups[0]['lr']))
-
-        train(train_loader, model, criterion, optimizer, epoch) # train for one epoch
-        result, img_merge = validate(val_loader, model,criterion, epoch) # evaluate on validation set
-
-
-        # remember best rmse and save checkpoint
-        is_best = result.rmse < best_result.rmse
-        if is_best:
-            best_result = result
-            with open(best_txt, 'w') as txtfile:
-                txtfile.write("epoch={}\nmse={:.3f}\nrmse={:.3f}\nabsrel={:.3f}\nlg10={:.3f}\nmae={:.3f}\ndelta1={:.3f}\nt_gpu={:.4f}\n".
-                    format(epoch, result.mse, result.rmse, result.absrel, result.lg10, result.mae, result.delta1, result.gpu_time))
-            if img_merge is not None:
-                img_filename = output_directory + '/comparison_best.png'
-                utils.save_image(img_merge, img_filename)
-
-        utils.save_checkpoint({
-            'args': args,
-            'epoch': epoch,
-            'arch': args.arch,
-            'model': model,
-            'best_result': best_result,
-            'optimizer' : optimizer,
-        }, is_best, epoch, output_directory)
 
 def create_optimizer(optimizer_type, parameters, momentum=0, weight_decay=0, lr_init=10e-4, lr_step=5, lr_gamma=0.1):
 
@@ -441,6 +282,7 @@ def train(train_loader, model, criterion, optimizer,output_folder,  epoch):
     if prediction[2] is not None:
         report_epoch_error(output_folder+'/train.csv', epoch, average_meter[1].average())
 
+
 def report_top_result(filename_csv,epoch,epoch_result):
     with open(filename_csv, 'w') as txtfile:
         txtfile.write(
@@ -448,6 +290,8 @@ def report_top_result(filename_csv,epoch,epoch_result):
                 format(epoch, epoch_result.mse, epoch_result.rmse, epoch_result.absrel, epoch_result.lg10,
                        epoch_result.mae, epoch_result.delta1,
                        epoch_result.gpu_time))
+
+
 def report_epoch_error(filename_csv, epoch, avg):
     fieldnames = ['epoch', 'mse', 'rmse', 'absrel', 'lg10', 'mae',
                   'delta1', 'delta2', 'delta3',
@@ -518,13 +362,12 @@ class ResultSampleImage():
         if to_disk:
             utils.save_image(self.image, self.filename)
 
-
-    def update(self,i,input,prediction,target):
-
-        if (i % self.sample_step == 0):
+    def update(self,i, input, prediction,target):
+        if (i % self.sample_step) == 0:
             self.save(input, prediction, target)
-            if (i % (4*self.sample_step) == 0):
+            if (i % 4*self.sample_step) == 0:
                 self.save(input,prediction,target,True)
+
 
 def validate(val_loader, model,criterion, epoch, output_folder=None):
     average_meter = [AverageMeter(), AverageMeter()]
@@ -590,9 +433,3 @@ def validate(val_loader, model,criterion, epoch, output_folder=None):
     return final_result
 
 
-if __name__ == '__main__':
-
-    parser = create_command_parser()
-    args = parser.parse_args(sys.argv[1:])
-    print(args)
-    #main()

@@ -1,7 +1,7 @@
 
-import main_conf
+import trainer
 import dataloaders.dataloader_factory as df
-import model_zoo.model_conf as mc
+import model_zoo.confidence_depth_framework as mc
 import torch
 import math
 
@@ -9,14 +9,14 @@ import math
 
 def test_main():
     args_list = ['-a asd','-l']
-    parser = main_conf.create_command_parser()
+    parser = trainer.create_command_parser()
     args = parser.parse_args(args_list)
-    main_conf.main(args)
+    trainer.main(args)
 
 
 def test_raw():
-    val_loader, _ = main_conf.create_data_loaders('/media/lucas/lucas-ds2-1tb/dataset_small_v11', loader_type='val')
-    train_loader, _ = main_conf.create_data_loaders('/media/lucas/lucas-ds2-1tb/dataset_small_v11', loader_type='train')
+    val_loader, _ = trainer.create_data_loaders('/media/lucas/lucas-ds2-1tb/dataset_small_v11', loader_type='val')
+    train_loader, _ = trainer.create_data_loaders('/media/lucas/lucas-ds2-1tb/dataset_small_v11', loader_type='train')
 
     cdf = mc.ConfidenceDepthFrameworkFactory()
     cdfmodel = mc.ConfidenceDepthFrameworkModel()
@@ -69,13 +69,13 @@ if __name__ == '__main__':
     print('hello')
 
     val_loader,_ = df.create_data_loaders('/media/lucas/lucas-ds2-1tb/dataset_small_v11',loader_type='val',batch_size=1)
-    train_loader,_ = df.create_data_loaders('/media/lucas/lucas-ds2-1tb/dataset_small_v11',loader_type='train',batch_size=32)
+    train_loader,_ = df.create_data_loaders('/media/lucas/lucas-ds2-1tb/dataset_small_v11',loader_type='train',batch_size=2)
 
     cdf =  mc.ConfidenceDepthFrameworkFactory()
-    cdfmodel = cdf.create_model('rgbd','dc1-cf1-ln1','resnet18',None,'cbr3-c1',None,'resnet18',None)
+    cdfmodel = cdf.create_model('rgbd','dc1-cf0-ln1','resnet18',None,'cbr3-c1',None,'resnet18',None)
     cdfmodel,opt_parameters = cdf.to_device(cdfmodel)
 
-    optimizer, scheduler = main_conf.create_optimizer('adam',opt_parameters,0,0,0.00001,100,0.1)
+    optimizer, scheduler = trainer.create_optimizer('adam', opt_parameters, 0, 0, 0.00001, 100, 0.1)
 
     loss,loss_definition = cdf.create_loss('l2',True,0.5)
     # main_conf.save_checkpoint(cdf,cdfmodel,loss_definition,optimizer,scheduler,True,epoch,output_directory)
@@ -96,19 +96,19 @@ if __name__ == '__main__':
     output_directory = './res1'
     best_result = math.inf
     for epoch in range(1, 30):
-        main_conf.train(train_loader,cdfmodel,loss,optimizer,output_directory,epoch)
-        epoch_result = main_conf.validate(val_loader, cdfmodel, loss, epoch, output_directory)
+        trainer.train(train_loader, cdfmodel, loss, optimizer, output_directory, epoch)
+        epoch_result = trainer.validate(val_loader, cdfmodel, loss, epoch, output_directory)
         scheduler.step(epoch)
 
         is_best = epoch_result.rmse < best_result
         if is_best:
             best_result = epoch_result.rmse
-            main_conf.report_top_result(output_directory + '/best_result.txt', epoch, epoch_result)
+            trainer.report_top_result(output_directory + '/best_result.txt', epoch, epoch_result)
             # if img_merge is not None:
             #     img_filename = output_directory + '/comparison_best.png'
             #     utils.save_image(img_merge, img_filename)
 
-        main_conf.save_checkpoint(cdf, cdfmodel, loss_definition, optimizer, scheduler, is_best, epoch, output_directory)
+        trainer.save_checkpoint(cdf, cdfmodel, loss_definition, optimizer, scheduler, is_best, epoch, output_directory)
 
 
 

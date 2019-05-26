@@ -1,9 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from nconv_sd import CNN as unguided_net
+from model_zoo.nconv_sd import CNN as unguided_net
 from model_zoo.s2d_resnet import S2DResNet
-import guided_ms_net
+
 
 
 class ConfidenceDepthFrameworkFactory():
@@ -23,7 +23,7 @@ class ConfidenceDepthFrameworkFactory():
         elif model_arch == 'nconv-ms':
             assert output_type == 'rgbdc', 'nconv-ms only accept rgbdc input'
             #upproj is the best and default in the sparse-to-dense icra 2018 paper
-            model = guided_ms_net.NconvMS()
+            model = NconvMS()
 
         else:
             raise RuntimeError('Model: {} not found.'.format(model_arch))
