@@ -172,11 +172,13 @@ class ConfidenceDepthFrameworkModel(torch.nn.Module):
 
     def forward(self, input): #input rgbdc
         dc_x = input[:,:self.input_size,:,:]
-        depth1,conf_x = self.dc_model(dc_x,(self.conf_model is not None))
+        depth1,conf_x = self.dc_model(dc_x,(self.loss_dc_model is not None))
 
         if self.conf_model is not None:
             assert(conf_x is not None),'dc_model does not support extern confidence net'
             conf1 = self.conf_model(conf_x)
+        elif conf_x is not None:
+            conf1 = conf_x
         else:
             conf1 = None
 

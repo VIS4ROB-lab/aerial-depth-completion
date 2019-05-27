@@ -116,7 +116,16 @@ def main_func(args):
 single_ged = ['--data-path', '/media/lucas/lucas-ds2-1tb/dataset_small_v11',
                     '-j','8',
                     '--dcnet-arch','ged_depthcompnet',
+                    '--training-mode','dc1_only',
                     '-c','l2']
+
+join_double_ged = ['--data-path', '/media/lucas/lucas-ds2-1tb/dataset_small_v11',
+                    '-j','8',
+                    '--training-mode','dc1-ln1',
+                    '--dcnet-arch','ged_depthcompnet',
+                    '--lossnet-arch', 'ged_depthcompnet',
+                    '-c','absrel']
+
 double_ged = ['--data-path', '/media/lucas/lucas-ds2-1tb/dataset_small_v11',
                     '-j','8',
                     '--training-mode','dc1-cf1-ln1',
@@ -154,7 +163,7 @@ if __name__ == '__main__':
 
     if len(sys.argv) > 1 and sys.argv[1] == 'dummy':
         print('dummy arguments')
-        arg_list = single_kitti_ged
+        arg_list = join_double_ged
     else:
         print('using external arguments')
         arg_list = sys.argv[1:]
