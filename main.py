@@ -130,7 +130,7 @@ double_ged_s = '--data-path /media/lucas/lucas-ds2-1tb/dataset_small_v11 ' \
                     '-c l2 '
                     #'--max-gt-depth 50 '\
 
-                    
+
 if __name__ == '__main__':
 
     if len(sys.argv) < 2:

@@ -5,7 +5,6 @@ from model_zoo.nconv_sd import CNN as unguided_net
 from model_zoo.s2d_resnet import S2DResNet
 
 
-
 class ConfidenceDepthFrameworkFactory():
     def __init__(self):
         a =1
@@ -70,7 +69,6 @@ class ConfidenceDepthFrameworkFactory():
     def create_model(self, input_type, overall_arch, dc_arch, dc_weights, conf_arch=None
                      , conf_weights=None, lossdc_arch=None, lossdc_weights=None):
 
-
         cdfmodel = ConfidenceDepthFrameworkModel()
 
         cdfmodel.dc_model = None
@@ -81,7 +79,6 @@ class ConfidenceDepthFrameworkFactory():
         cdfmodel.loss_dc_arch = lossdc_arch
         cdfmodel.overall_arch = overall_arch
         cdfmodel.input_type = input_type
-
 
         if 'dc' in overall_arch:
 
@@ -140,8 +137,6 @@ class ConfidenceDepthFrameworkFactory():
                                 state['conf_weights'],
                                 state['loss_dc_arch'],
                                 state['lossdc_weights'])
-
-
 
 
 def init_weights(m):
@@ -434,7 +429,6 @@ class GEDNet(nn.Module):
         return depth, features
 
 
-
 class NconvMS(nn.Module):
 
     def __init__(self,pos_fn=None):
@@ -569,8 +563,6 @@ class NconvMS(nn.Module):
         return xout,cout_d
 
 
-
-
 ################################################
 # criteria nets
 ################################################
@@ -616,6 +608,7 @@ class MaskedMSELoss(nn.Module):
 
         return final_loss
 
+
 class InvertedMaskedL1Loss(nn.Module):
     def __init__(self):
         super(InvertedMaskedL1Loss, self).__init__()
@@ -634,6 +627,7 @@ class InvertedMaskedL1Loss(nn.Module):
         self.loss = [final_loss.item(),0,0]
 
         return final_loss
+
 
 class MaskedAbsRelLoss(nn.Module):
     def __init__(self):
@@ -658,6 +652,7 @@ class MaskedAbsRelLoss(nn.Module):
         self.loss = [final_loss.item(),0,0]
 
         return final_loss
+
 
 class MaskedL1Loss(nn.Module):
     def __init__(self):
