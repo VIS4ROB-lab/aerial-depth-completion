@@ -72,13 +72,14 @@ def main_func(args):
     if args.evaluate:
         cdfmodel,loss, epoch = trainer.resume(args.evaluate,cdf,True)
         output_directory = create_eval_output_folder(args)
-        os.makedirs(output_directory,exist_ok=True)
+        os.makedirs(output_directory)
+        save_arguments(args,output_directory)
         trainer.validate(val_loader, cdfmodel, loss, epoch, num_image_samples=4, print_frequency=10, output_folder=output_directory)
         return
 
     output_directory = create_output_folder(args)
-    if not os.path.exists(output_directory):
-        os.makedirs(output_directory)
+    os.makedirs(output_directory)
+    save_arguments(args, output_directory)
 
     # optionally resume from a checkpoint
     if args.resume:
@@ -143,7 +144,7 @@ if __name__ == '__main__':
 
     if len(sys.argv) > 1 and sys.argv[1] == 'dummy':
         print('dummy arguments')
-        arg_list = eval_s.split()
+        arg_list = double_ged_s.split()
     else:
         print('using external arguments')
         arg_list = sys.argv[1:]

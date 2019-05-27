@@ -115,7 +115,12 @@ class ConfidenceDepthFrameworkFactory():
 
         return cdfmodel, opt_parameters
 
-    def get_state(self,cdfmodel):
+    def get_state(self,x):
+
+        if isinstance(x, torch.nn.DataParallel):
+            cdfmodel = x.module
+        else:
+            cdfmodel = x
 
         state = {'input_type':cdfmodel.input_type,
                  'overall_arch': cdfmodel.overall_arch,
