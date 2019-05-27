@@ -262,6 +262,6 @@ class KittiDepth(data.Dataset):
         return input_ts, target_ts, iscale
 
     def __len__(self):
-        return 80 #len(self.paths['gt'])
+        return len(self.paths['gt'])
 
 

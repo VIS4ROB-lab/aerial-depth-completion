@@ -52,11 +52,13 @@ def create_data_loaders(data_path, data_type='visim', loader_type='val', arch=''
         # set batch size to be 1 for validation
         loader = torch.utils.data.DataLoader(dataset,
             batch_size=1, shuffle=False, num_workers=workers, pin_memory=True)
+        print("=> Val loader:{}".format(len(dataset)))
     elif loader_type == 'train':
         loader = torch.utils.data.DataLoader(
             dataset, batch_size=batch_size, shuffle=True,
             num_workers=workers, pin_memory=True, sampler=None,
             worker_init_fn=lambda work_id:np.random.seed(work_id))
+        print("=> Train loader:{}".format(len(dataset)))
             # worker_init_fn ensures different sampling patterns for each data loading thread
 
     print("=> data loaders created.")

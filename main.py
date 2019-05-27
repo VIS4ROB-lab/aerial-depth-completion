@@ -67,7 +67,7 @@ def main_func(args):
                                                  , max_depth=args.max_depth
                                                  , max_gt_depth=args.max_gt_depth
                                                  , workers=args.workers
-                                                 , batch_size=8)
+                                                 , batch_size=args.batch_size)
 
     # evaluation mode
     if args.evaluate:
@@ -133,12 +133,13 @@ double_ged_s = '--data-path /media/lucas/lucas-ds2-1tb/dataset_small_v11 ' \
                     '--output lucas ' \
                     '-c l2 '\
                     '--epochs 30 '
-                    #'--max-gt-depth 50 '\
+
 
 single_kitti_ged = ['--data-path', '/media/lucas/lucas-ds2-1tb/code/kitti',
                     '--data-type', 'kitti',
                     '-j','8',
                     '--dcnet-arch','ged_depthcompnet',
+                    '--batch-size','4',
                     '-c','l2']
 
 
