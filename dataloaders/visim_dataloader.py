@@ -6,7 +6,7 @@ from dataloaders.dataloader_ext import MyDataloaderExt,Modality,SeqMyDataloaderE
 #iheight, iwidth = 480, 752 # raw image size
 
 class VISIMDataset(MyDataloaderExt):
-    def __init__(self, root, type, sparsifier=None, modality='rgb', is_resnet = False,depth_divider=1.0,max_gt_depth=math.inf):
+    def __init__(self, root, type, sparsifier=None, modality='rgb', is_resnet = False,depth_divider=0,max_gt_depth=math.inf):
         super(VISIMDataset, self).__init__(root, type, sparsifier,max_gt_depth, modality)
         self.depth_divider = depth_divider
 
@@ -39,7 +39,7 @@ class VISIMDataset(MyDataloaderExt):
 
         attrib_np = dict()
 
-        if self.depth_divider == 1.0:
+        if self.depth_divider == 0:
             if 'fd' in attrib_list:
                 minmax_image = transform(attrib_list['fd'])
                 max_depth = max(minmax_image.max(),1.0)
@@ -52,6 +52,7 @@ class VISIMDataset(MyDataloaderExt):
             scale = 10.0 / max_depth  # 10 is arbitrary. the network only converge in a especific range
         else:
             scale = 1.0 / self.depth_divider
+
         attrib_np['scale'] = 1.0 / scale
 
         for key, value in attrib_list.items():

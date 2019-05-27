@@ -110,13 +110,13 @@ def rgb2grayscale(rgb):
 class Modality():
     #modality_names = ['rgb', 'grey', 'fd', 'kor', 'kgt', 'kw', 'kde', 'dor', 'dde', 'dvor', 'd2dwor', 'd3dwde','d3dwor','wkde','wdde']
 
-    depth_channels_names = ['fd', 'kor', 'kde', 'kgt', 'dor', 'dde', 'dvor', 'dvgt', 'dvde','dore','ddee']
-    metric_weight_names = ['d3dwde','d3dwor','wkde','wdde']
-    image_size_weight_names = ['d2dwde','d2dwgt','d2dwor']
-    weight_names = image_size_weight_names + ['kw'] + metric_weight_names
+    depth_channels_names = ['fd', 'kor', 'kde', 'kgt']
+    metric_weight_names = []
+    image_size_weight_names = ['bin','kw']
+    weight_names = image_size_weight_names + metric_weight_names
     need_divider = depth_channels_names + ['gt_depth'] + metric_weight_names
     no_transform = ['t_wc','scale']
-    color_names = ['rgb', 'grey']
+    color_names = ['rgb']
     modality_names = color_names+depth_channels_names+weight_names
 
     def __init__(self, value):
@@ -318,7 +318,7 @@ class MyDataloaderExt(data.Dataset):
                 result['normal_z'] = normal_rescaled[2, :, :]
         elif 'depth' in h5f:
             depth = np.array(h5f['depth'])
-            if not math.isinf(self.max_gt_depth):
+            if not math.isinf(self.max_gt_depth) and self.max_gt_depth > 0:
                 mask_max = depth >  self.max_gt_depth
                 depth[mask_max] = 0
             result['gt_depth'] = depth
@@ -543,7 +543,7 @@ class MyDataloaderExt(data.Dataset):
             input_np = self.append_tensor3d(input_np, zeros)
 
         num_weight_channel, weight_channel = self.modality.get_input_weight_channel()
-        if num_weight_channel > 0:
+        if num_weight_channel > 0 and weight_channel != 'bin':
             input_np = self.append_tensor3d(input_np, channels_transformed_np[weight_channel])
         else:
             confidence = np.zeros_like(input_np[0,:,:])

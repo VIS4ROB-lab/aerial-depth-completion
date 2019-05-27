@@ -23,19 +23,19 @@ def create_command_parser():
     import argparse
 
     model_names = ['resnet18', 'udepthcompnet18','erfdepthcompnet','gms_depthcompnet','ged_depthcompnet']
-    model_input_type = ['d','dw','c','cd','cdw']
+    model_input_type = ['rgb','rgbd','rgbdw'] #['d','dw','c','cd','cdw']
     #image_type_source = ['g', 'rgb','undefined']
-    sparse_depth_source = ['kgt','kor','kde','fd','undefined']
-    sparse_conf_source = ['bin', 'kw','undefined']
+    #sparse_depth_source = ['kgt','kor','kde','fd','undefined']
+    #sparse_conf_source = ['bin', 'kw','undefined']
     training_mode = ['dc1','dc1-ln0','dc1-ln1', 'dc0-cf1-ln0', 'dc1-cf1-ln0', 'dc1-cf1-ln1']
-    confnet_exclusive_names = ['cbr3-c1', 'cbr3-cbr1-c1','cbr5-cbr3-cbr1-c1']
+    confnet_exclusive_names = ['cbr3-c1','cbr3-cbr1-c1', 'cbr3-cbr1-c1res' ]#'cbr3-cbr1-c1','cbr5-cbr3-cbr1-c1'
     confnet_names = confnet_exclusive_names + ['join','none']
+    data_modality_types = ['rgb-fd-bin','rgb-kgt-bin','rgb-kor-bin','rgb-kor-kw']
+    #confnet_input_type = ['c','cd','cw','cdw','cdwr', 'cdwrl','cdr', 'cdrl', 'clr','lr'] #'c','cd','cw','cdw','cdwr', 'cdwrl','cdr', 'cdrl', 'clr'
 
-    confnet_input_type = ['c','cd','cw','cdw','cdwr', 'cdwrl','cdr', 'cdrl', 'clr','lr'] #'c','cd','cw','cdw','cdwr', 'cdwrl','cdr', 'cdrl', 'clr'
-
-    loss_names = ['l1', 'l2']
+    loss_names = ['l1', 'l2', 'il1', 'absrel']
     data_types = ['nyuv2', 'visim', 'visim_nyuv2', 'kitti' ]
-    data_scale = ['per_frame', 'global', 'none']
+    #data_scale = ['per_frame', 'global', 'none']
 
     opt_names = ['sgd', 'adam']
     from dataloaders.dense_to_sparse import UniformSampling, SimulatedStereo
@@ -44,136 +44,93 @@ def create_command_parser():
     parser = argparse.ArgumentParser(description='Confidence Depth Completion')
 
     # training
+    parser.add_argument('--output', metavar='FOLDER', default='',
+                        help='output folder')
     parser.add_argument('--training-mode', metavar='ARCH', default='dc1', choices=training_mode,
                         help='training_mode: ' + ' | '.join(training_mode) + ' (default: dc1)')
 
     #dcnet
-    parser.add_argument('--dcnet_arch', metavar='ARCH', default='resnet18', choices=model_names,
+    parser.add_argument('--dcnet-arch', metavar='ARCH', default='resnet18', choices=model_names,
                         help='model architecture: ' + ' | '.join(model_names) + ' (default: resnet18)')
 
-    parser.add_argument('--dcnet_pretrained', default='resnet', type=str, metavar='PATH',
+    parser.add_argument('--dcnet-pretrained', default='resnet', type=str, metavar='PATH',
                         help='path to pretraining checkpoint (default: buildin resnet)')
 
-    parser.add_argument('--dcnet_modality', metavar='MODALITY', default='cd', choices=model_input_type, type=str,
-                        help='modality: ' + ' | '.join(model_input_type) + ' (default: cd)')
+    parser.add_argument('--dcnet-modality', metavar='MODALITY', default='rgbd', choices=model_input_type, type=str,
+                        help='modality: ' + ' | '.join(model_input_type) + ' (default: rgbd)')
 
     #confnet
-    parser.add_argument('--confnet_arch', metavar='ARCH', default='cbr3-c1', choices=confnet_names,
+    parser.add_argument('--confnet-arch', metavar='ARCH', default='cbr3-c1', choices=confnet_names,
                         help='model architecture: ' + ' | '.join(confnet_names) + ' (default: cbr3-c1)')
 
-    parser.add_argument('--confnet_pretrained', default='none', type=str, metavar='PATH',
+    parser.add_argument('--confnet-pretrained', default='none', type=str, metavar='PATH',
                         help='path to pretraining checkpoint (default: none)')
-
-    parser.add_argument('--confnet_modality', metavar='MODALITY', default='cdrl', choices=confnet_input_type, type=str,
-                        help='modality: ' + ' | '.join(confnet_input_type) + ' (default: cdrl)')
-
     #lossnet
-    parser.add_argument('--lossnet_arch', metavar='ARCH', default='ged_depthcompnet', choices=model_names,
+    parser.add_argument('--lossnet-arch', metavar='ARCH', default='ged_depthcompnet', choices=model_names,
                         help='model architecture: ' + ' | '.join(model_names) + ' (default: ged_depthcompnet)')
 
-    parser.add_argument('--lossnet_pretrained', default='none', type=str, metavar='PATH',
+    parser.add_argument('--lossnet-pretrained', default='none', type=str, metavar='PATH',
                         help='path to pretraining checkpoint (default: none)')
 
     #input data
     parser.add_argument('--data-type', metavar='DATA', default='visim',
-                        choices=data_types,
-                        help='dataset: ' + ' | '.join(data_types) + ' (default: visim)')
-
+                        choices=data_types, help='dataset: ' + ' | '.join(data_types) + ' (default: visim)')
     parser.add_argument('--data-path', default='data', type=str, metavar='PATH',
                         help='path to data folder')
-
-    # parser.add_argument('--image-type', metavar='DATA', default='rgb',
-    #                     choices=image_type_source,
-    #                     help='dataset: ' + ' | '.join(image_type_source) + ' (default: rgb)')
-
-    parser.add_argument('--sparse_depth-type', metavar='TYPE', default='rgb',
-                        choices=sparse_depth_source,
-                        help='dataset: ' + ' | '.join(sparse_depth_source) + ' (default: rgb)')
-
-    parser.add_argument('--sparse-conf-type', metavar='TYPE', default='rgb',
-                        choices=sparse_conf_source,
-                        help='dataset: ' + ' | '.join(sparse_conf_source) + ' (default: rgb)')
-
+    parser.add_argument('--data-modality', metavar='MODALITY', default='rgb-fd-bin', choices=data_modality_types,
+                        type=str, help='modality: ' + ' | '.join(data_modality_types) + ' (default: rgb-fd-bin)')
+    parser.add_argument('-j', '--workers', default=10, type=int, metavar='N',
+                        help='number of data loading workers (default: 10)')
+    parser.add_argument('--epochs', default=15, type=int, metavar='N',
+                        help='number of total epochs to run (default: 15)')
     parser.add_argument('--max-gt-depth', default=math.inf, type=float, metavar='D',
                         help='cut-off depth of ground truth, negative values means infinity (default: inf [m])')
-
-    # only valid for the fd input
-    parser.add_argument('-s', '--num-samples', default=0, type=int, metavar='N',
-                        help='number of sparse depth samples (default: 0)')
-    parser.add_argument('--sparsifier', metavar='SPARSIFIER', default=UniformSampling.name, choices=sparsifier_names,
-                        help='sparsifier: ' + ' | '.join(sparsifier_names) + ' (default: ' + UniformSampling.name + ')')
-
-    #input filter
-
     parser.add_argument('--min-depth', default=0.0, type=float, metavar='D',
-                        help='cut-off depth of sparsifier, negative values means infinity (default: inf [m])')
+                        help='cut-off depth of sparsifier (default: 0 [m])')
     parser.add_argument('--max-depth', default=-1.0, type=float, metavar='D',
                         help='cut-off depth of sparsifier, negative values means infinity (default: inf [m])')
-    parser.add_argument('--scaling', default='per_frame', choices=data_scale,
-                        help='model architecture: ' + ' | '.join(data_scale) + ' (default: per_frame)')
-    parser.add_argument('--global-divider', default=1.0, type=float, metavar='D',
-                        help='Normalization factor (default: 1.0 [m])')
+    parser.add_argument('--divider', default=0, type=float, metavar='D',
+                        help='Normalization factor - zero means per frame (default: 0 [m])')
 
-
-
-
+    # only valid for the fd input
+    parser.add_argument('-s', '--num-samples', default=500, type=int, metavar='N',
+                        help='number of sparse depth samples (default: 500)')
+    parser.add_argument('--sparsifier', metavar='SPARSIFIER', default=UniformSampling.name, choices=sparsifier_names,
+                        help='sparsifier: ' + ' | '.join(sparsifier_names) + ' (default: ' + UniformSampling.name + ')')
 
     #loss
     parser.add_argument('-c', '--criterion', metavar='LOSS', default='l1', choices=loss_names,
                         help='loss function: ' + ' | '.join(loss_names) + ' (default: l1)')
 
     #training params
-    parser.add_argument('-o', '--optimizer', metavar='OPTIMIZER', default='sgd', choices=opt_names,
-                        help='Optimizer: ' + ' | '.join(opt_names) + ' (default: SGD)')
-    parser.add_argument('-j', '--workers', default=10, type=int, metavar='N',
-                        help='number of data loading workers (default: 10)')
-    parser.add_argument('--epochs', default=15, type=int, metavar='N',
-                        help='number of total epochs to run (default: 15)')
-    parser.add_argument('-b', '--batch-size', default=8, type=int, help='mini-batch size (default: 8)')
-    parser.add_argument('-lr', '--learning-rate', default=0.01, type=float,dest='lr',
-                        metavar='LR', help='initial learning rate (default 0.01)')
+    parser.add_argument('-o', '--optimizer', metavar='OPTIMIZER', default='adam', choices=opt_names,
+                        help='Optimizer: ' + ' | '.join(opt_names) + ' (default: adam)')
+    parser.add_argument('-b', '--batch-size', default=8, type=int,
+                        help='mini-batch size (default: 8)')
+    parser.add_argument('-lr', '--learning-rate', default=0.001, type=float,dest='lr',
+                        metavar='LR', help='initial learning rate (default 0.001)')
     parser.add_argument('-lrs', '--learning-rate-step', default=5, type=int, metavar='LRS',dest='lrs',
                         help='number of epochs between reduce the learning rate by 10 (default: 5)')
-    parser.add_argument('-lrm', '--learning-rate-min', default=0.00001, type=float, dest='lrm',
-                        metavar='LRM', help='minimum learning rate (default 0.00001)')
-    parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
+    parser.add_argument('-lrm', '--learning-rate-multiplicator', default=0.1, type=float, dest='lrm',
+                        metavar='LRM', help='multiplicator (default 0.1)')
+    parser.add_argument('--momentum', default=0, type=float, metavar='M',
                         help='momentum')
-    parser.add_argument('--weight-decay', '--wd', default=1e-4, type=float,
-                        metavar='W', help='weight decay (default: 1e-4)')
+    parser.add_argument('--weight-decay', '--wd', default=0, type=float,
+                        metavar='W', help='weight decay (default: 0)')
 
     #output
-    parser.add_argument('--val-images', default=40, type=int, metavar='N',
+    parser.add_argument('--val-images', default=10, type=int, metavar='N',
                         help='number of images in the validation image (default: 40)')
     parser.add_argument('--print-freq', '-p', default=10, type=int,
                         metavar='N', help='print frequency (default: 10)')
 
+    #alternative modes
     parser.add_argument('--resume', default='', type=str, metavar='PATH',
-                        help='path to latest checkpoint (default: none)')
-    parser.add_argument('-e', '--evaluate', dest='evaluate', type=str, default='',
-                        help='evaluate model on validation set')
-    #
-    # args = parser.parse_args()
+                        help="path to latest checkpoint (default: empty)")
+    parser.add_argument('-e', '--evaluate', dest='evaluate', type=str, default='', metavar='PATH',
+                        help='evaluate model on validation set (default: empty)')
 
-
-    # if args.pretrained == False:
-    #     print("not using pretraining")
-    # elif args.pretrained == 'resnet':
-    #     args.pretrained = True
-    # elif args.pretrained != '':
-    #     assert os.path.isfile(args.pretrained)
-    # else:
-    #     args.pretrained = False
-    #     print("not using pretraining")
-    #
-    # if not Modality.validate_static(args.modality):
-    #     print("input modality with problem")
-    #     exit(0)
-
-    # if args.modality == 'rgb' and args.max_depth != 0.0:
-    #     print("max depth is forced to be 0.0 when input modality is rgb/rgbd")
-    #     args.max_depth = 0.0
     return parser
-
 
 
 def create_optimizer(optimizer_type, parameters, momentum=0, weight_decay=0, lr_init=10e-4, lr_step=5, lr_gamma=0.1):
@@ -203,22 +160,27 @@ def create_optimizer_fromstate(parameters,state):
     scheduler.load_state_dict(state['scheduler_state'])
     return optimizer, scheduler
 
-def resume(filename, factory):
+def resume(filename, factory,only_evaluation):
     checkpoint = torch.load(filename)
     loss, loss_def = factory.create_loss_fromstate(checkpoint['loss_definition'])
     cdfmodel = factory.create_model_from_state(checkpoint['model_state'])
-    optimizer, scheduler = create_optimizer_fromstate(cdfmodel.opt_params(), checkpoint['optimizer_state'])
+    if not only_evaluation:
+        best_result_error = checkpoint['best_result_error']
+        optimizer, scheduler = create_optimizer_fromstate(cdfmodel.opt_params(), checkpoint['optimizer_state'])
+        return cdfmodel, loss, loss_def, best_result_error, optimizer, scheduler
 
-    return cdfmodel,loss,loss_def,optimizer,scheduler
+    return cdfmodel,loss
 
 
-def save_checkpoint(factory,cdfmodel,loss_definition,optimizer, scheduler,is_best,epoch,output_directory):
+def save_checkpoint(factory,cdfmodel,loss_definition,optimizer, scheduler,best_result_error,is_best,epoch,output_directory):
 
     model_state = factory.get_state(cdfmodel)
     optimizer_state = get_optimizer_state(optimizer, scheduler)
     checkpoint = {  'model_state': model_state,
                     'optimizer_state': optimizer_state,
-                    'loss_definition':loss_definition}
+                    'loss_definition':loss_definition,
+                    'epoch':epoch,
+                    'best_result_error':best_result_error}
     utils.save_checkpoint(checkpoint,is_best,epoch,output_directory)
 
 
@@ -274,13 +236,13 @@ def train(train_loader, model, criterion, optimizer,output_folder,  epoch):
         end = time.time()
 
         if (i + 1) % 10 == 0:
-            print_error(num_total_samples, average_meter[0].average(), result[0], criterion.loss, data_time, gpu_time, i, epoch)
+            print_error('Train',num_total_samples, average_meter[0].average(), result[0], criterion.loss, data_time, gpu_time, i, epoch)
             if prediction[2] is not None:
-                print_error(num_total_samples, average_meter[1].average(), result[1], criterion.loss, data_time, gpu_time, i, epoch)
+                print_error('Train',num_total_samples, average_meter[1].average(), result[1], criterion.loss, data_time, gpu_time, i, epoch)
 
-    report_epoch_error(output_folder+'/train.csv', epoch, average_meter[0].average())
+    report_epoch_error(os.path.join(output_folder,'train.csv'), epoch, average_meter[0].average())
     if prediction[2] is not None:
-        report_epoch_error(output_folder+'/train.csv', epoch, average_meter[1].average())
+        report_epoch_error(os.path.join(output_folder,'train.csv'), epoch, average_meter[1].average())
 
 
 def report_top_result(filename_csv,epoch,epoch_result):
@@ -304,9 +266,9 @@ def report_epoch_error(filename_csv, epoch, avg):
                          'loss2': avg.loss2})
 
 
-def print_error(num_total_samples, average, result, loss, data_time, gpu_time, i, epoch):
+def print_error(type,num_total_samples, average, result, loss, data_time, gpu_time, i, epoch):
     # print('=> output: {}'.format(output_directory))
-    print('Train Epoch: {0} [{1}/{2}]\t'
+    print('{type} Epoch: {0} [{1}/{2}]\t'
           't_Data={data_time:.3f}({average.data_time:.3f}) '
           't_GPU={gpu_time:.3f}({average.gpu_time:.3f})\n\t'
           'RMSE={result.rmse:.2f}({average.rmse:.2f}) '
@@ -316,7 +278,7 @@ def print_error(num_total_samples, average, result, loss, data_time, gpu_time, i
           'Lg10={result.lg10:.3f}({average.lg10:.3f}) '
           'Loss={losses[0]}/{losses[1]}/{losses[2]} '.format(
         epoch, i + 1, num_total_samples, data_time=data_time,
-        gpu_time=gpu_time, result=result, average=average, losses=loss))
+        gpu_time=gpu_time, result=result, average=average, type=type, losses=loss))
     attrlist = [[
         {'attr': 'id', 'name': 'ID'},
         {'attr': 'load', 'name': 'GPU util.', 'suffix': '%', 'transform': lambda x: x * 100, 'precision': 0},
@@ -333,7 +295,7 @@ class ResultSampleImage():
         self.normal_net = None
         self.image = None
         self.num_samples = num_samples
-        self.sample_step = math.floor(total_images / float(num_samples))
+        self.sample_step = total_images // float(num_samples)
         self.filename = output_directory + '/comparison_' + str(epoch) + '.png'
 
     def save(self,input,prediction,target,to_disk=False):
@@ -364,18 +326,17 @@ class ResultSampleImage():
 
     def update(self,i, input, prediction,target):
         if (i % self.sample_step) == 0:
-            self.save(input, prediction, target)
-            if (i % 4*self.sample_step) == 0:
-                self.save(input,prediction,target,True)
+            self.save(input, prediction, target,((i % 2*self.sample_step) == 0))
 
 
-def validate(val_loader, model,criterion, epoch, output_folder=None):
+
+def validate(val_loader, model,criterion, epoch, num_image_samples=4, print_frequency=10, output_folder=None):
     average_meter = [AverageMeter(), AverageMeter()]
 
     model.eval()  # switch to train mode
     end = time.time()
     num_total_samples = len(val_loader)
-    rsi = ResultSampleImage(output_folder,epoch,40,num_total_samples)
+    rsi = ResultSampleImage(output_folder,epoch,num_image_samples,num_total_samples)
     for i, (input, target, scale) in enumerate(val_loader):
 
         torch.cuda.synchronize()
@@ -416,19 +377,19 @@ def validate(val_loader, model,criterion, epoch, output_folder=None):
 
         end = time.time()
 
-        if (i + 1) % 10 == 0:
-            print_error(num_total_samples, average_meter[0].average(), result[0], criterion.loss, data_time, gpu_time, i,
-                        epoch)
+        if (i + 1) % print_frequency == 0:
+            print_error('Val', num_total_samples, average_meter[0].average(), result[0],
+                        criterion.loss, data_time, gpu_time, i, epoch)
             if prediction[2] is not None:
-                print_error(num_total_samples, average_meter[1].average(), result[1], criterion.loss, data_time, gpu_time, i,
-                            epoch)
+                print_error('Val', num_total_samples, average_meter[1].average(), result[1],
+                            criterion.loss, data_time, gpu_time, i, epoch)
 
         rsi.update(i, input, prediction, target_depth)
 
     final_result = average_meter[0].average()
-    report_epoch_error(output_folder+'/val.csv', epoch, final_result)
+    report_epoch_error(os.path.join(output_folder, 'val.csv'), epoch, final_result)
     if prediction[2] is not None:
-        report_epoch_error(output_folder+'/val.csv', epoch, average_meter[1].average())
+        report_epoch_error(os.path.join(output_folder, 'val.csv'), epoch, average_meter[1].average())
 
     return final_result
 

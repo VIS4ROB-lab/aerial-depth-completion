@@ -20,28 +20,32 @@ class ConfidenceDepthFrameworkFactory():
         if model_arch == 'resnet18':
             #upproj is the best and default in the sparse-to-dense icra 2018 paper
             model = S2DResNet(layers=18, decoder='upproj', in_channels=len(input_type), out_channels=len(output_type), pretrained=use_resnet_pretrained)
-        elif model_arch == 'nconv-ms':
-            assert output_type == 'rgbdc', 'nconv-ms only accept rgbdc input'
-            #upproj is the best and default in the sparse-to-dense icra 2018 paper
-            model = NconvMS()
-
         else:
-            raise RuntimeError('Model: {} not found.'.format(model_arch))
+            if model_arch == 'gms_depthcompnet':
+                model = NconvMS(out_channels=len(output_type))
+            elif model_arch == 'ged_depthcompnet':
+                model = GEDNet(out_channels=len(output_type))
+            else:
+                raise RuntimeError('Model: {} not found.'.format(model_arch))
+            if pretrained_args:
+                a=1 #TODO load pretrained
 
         return model
 
     def create_conf_model(self,model_arch,pretrained_args,dc_model):
 
         in_channels = dc_model.out_feature_channels
-        out_channels = 1
 
         if model_arch == 'cbr3-c1':
             model = CBR3C1Confidence(in_channels=in_channels)
+        elif model_arch == 'cbr3-cbr1-c1':
+            model = CBR3CBR1C1ResConfidence(in_channels=in_channels)
+        elif model_arch == 'cbr3-cbr1-c1res':
+            model = CBR3CBR1C1ResConfidence(in_channels=in_channels)
         elif model_arch == 'forward':
             model = ForwardConfidence(in_channels=in_channels)
         else:
-            raise RuntimeError('Dataset not found.' +
-                               'The dataset must be either of nyudepthv2 or kitti.')
+            raise RuntimeError('Confidence net does not exist: {}'.format(model_arch))
 
         return model
 
@@ -120,10 +124,10 @@ class ConfidenceDepthFrameworkFactory():
                  'overall_arch': cdfmodel.overall_arch,
                  'dc_arch': cdfmodel.dc_arch,
                  'dc_weights': cdfmodel.dc_model.state_dict(),
-                 'conf_arch': cdfmodel.conf_arch,
-                 'conf_weights': cdfmodel.conf_model.state_dict(),
-                 'loss_dc_arch': cdfmodel.loss_dc_arch,
-                 'lossdc_weights': cdfmodel.loss_dc_model.state_dict()
+                 'conf_arch': (cdfmodel.conf_arch if cdfmodel.conf_model is not None else None),
+                 'conf_weights': (cdfmodel.conf_model.state_dict() if cdfmodel.conf_model is not None else None),
+                 'loss_dc_arch': (cdfmodel.loss_dc_arch if cdfmodel.loss_dc_model is not None else None),
+                 'lossdc_weights': (cdfmodel.loss_dc_model.state_dict() if cdfmodel.loss_dc_model is not None else None)
                  }
         return state
 
@@ -233,6 +237,86 @@ class CBR3C1Confidence(nn.Module):
         return torch.sigmoid(x)
 
 
+class CBR3CBR1C1Confidence(nn.Module):
+
+    def __init__(self,in_channels):
+        super(CBR3CBR1C1Confidence, self).__init__()
+
+        self.conv1 = nn.Conv2d(in_channels, in_channels, 3, 1,
+                                1, bias=False)
+
+        self.bn1 = nn.BatchNorm2d(in_channels)
+
+        self.relu1 =nn.LeakyReLU(0.2, inplace=True)
+
+        self.conv2 = nn.Conv2d(in_channels, in_channels//2, 1, 1,
+                               0, bias=False)
+
+        self.bn2 = nn.BatchNorm2d(in_channels//2)
+
+        self.relu2 = nn.LeakyReLU(0.2, inplace=True)
+
+        self.conv3 = nn.Conv2d(in_channels//2, 1, 1, 1,
+                                0, bias=True)
+
+        # initialize the weights
+        init_weights(self.conv1)
+        init_weights(self.bn1)
+        init_weights(self.conv2)
+        init_weights(self.bn2)
+        init_weights(self.conv3)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu1(x)
+        x = self.conv2(x)
+        x = self.bn2(x)
+        x = self.relu2(x)
+        x = self.conv3(x)
+        return torch.sigmoid(x)
+
+
+class CBR3CBR1C1ResConfidence(nn.Module):
+
+    def __init__(self, in_channels):
+        super(CBR3CBR1C1ResConfidence, self).__init__()
+
+        self.conv1 = nn.Conv2d(in_channels, in_channels, 3, 1,
+                               1, bias=False)
+
+        self.bn1 = nn.BatchNorm2d(in_channels)
+
+        self.relu1 = nn.LeakyReLU(0.2, inplace=True)
+
+        self.conv2 = nn.Conv2d(in_channels, in_channels // 2, 1, 1,
+                               0, bias=False)
+
+        self.bn2 = nn.BatchNorm2d(in_channels // 2)
+
+        self.relu2 = nn.LeakyReLU(0.2, inplace=True)
+
+        self.conv3 = nn.Conv2d(in_channels + (in_channels // 2), 1, 1, 1,
+                               0, bias=True)
+
+        # initialize the weights
+        init_weights(self.conv1)
+        init_weights(self.bn1)
+        init_weights(self.conv2)
+        init_weights(self.bn2)
+        init_weights(self.conv3)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.bn1(x)
+        y = self.relu1(x)
+        x = self.conv2(y)
+        x = self.bn2(x)
+        x = self.relu2(x)
+        x = self.conv3(torch.cat([x,y],dim=1))
+        return torch.sigmoid(x)
+
+
 class ForwardConfidence(nn.Module):
 
     def __init__(self,in_channels):
@@ -249,8 +333,15 @@ class ForwardConfidence(nn.Module):
 
 class GEDNet(nn.Module):
 
-    def __init__(self, pos_fn='SoftPlus', pretrained=None):
+    def __init__(self, pos_fn='SoftPlus', pretrained=None, out_channels=1):
         super(GEDNet,self).__init__()
+
+        self.out_channels = out_channels
+
+        if out_channels == 2:
+            self.out_feature_channels = 1
+        else:
+            self.out_feature_channels = 36
 
         # Import the unguided network
         self.d_net = unguided_net(pos_fn)
@@ -266,9 +357,7 @@ class GEDNet(nn.Module):
         self.conv7 = nn.Conv2d(64 + 80, 64, (3, 3), 1, 1, bias=True)
         self.conv8 = nn.Conv2d(64 + 80, 32, (3, 3), 1, 1, bias=True)
         self.conv9 = nn.Conv2d(32 + 80, 32, (3, 3), 1, 1, bias=True)
-        self.conv10 = nn.Conv2d(32 + 1, 1, (3, 3), 1, 1, bias=True)
-
-        self.num_layer_confidence_data = 36
+        self.conv10 = nn.Conv2d(32 + 1, self.out_channels, (3, 3), 1, 1, bias=True)
 
         # Init Weights
         cc = [self.conv1, self.conv2, self.conv3, self.conv4, self.conv5, \
@@ -288,7 +377,7 @@ class GEDNet(nn.Module):
             self.load_state_dict(model_dict)
 
 
-    def forward(self, x0):
+    def forward(self, x0, build_conf_input):
 
         x0_rgb = x0[:, :3, :, :]
         x0_d = x0[:, 3:4, :, :]
@@ -331,9 +420,18 @@ class GEDNet(nn.Module):
         x9u = F.interpolate(x9, x0_d.size()[2:], mode='nearest')
         last_layer_input = torch.cat((x9u, x0_d), 1)
         x10 = F.leaky_relu(self.conv10(last_layer_input), 0.2)
-        layer_output = torch.cat((last_layer_input,xout_d, cout_d,x10), 1) # 32 + 2 + 1 + 1
-        self.conf_features = layer_output
-        return x10
+
+        if build_conf_input:
+            if self.out_channels == 1:
+                features = torch.cat((last_layer_input,xout_d, cout_d,x10), 1) # 32 + 2 + 1 + 1
+            else: #out_channels == 2
+                features = x10[:,1:2,:,:] #it is already the confidence
+        else:
+            features = None
+
+        depth = x10[:, 0:1, :, :]
+
+        return depth, features
 
 
 
@@ -437,11 +535,14 @@ class NconvMS(nn.Module):
 
     def forward(self, x0, build_conf_input):
 
-        assert x0.shape[1] == 4, "The input is not RGB-D"
+        assert x0.shape[1] > 3, "The input is not RGB-D or rgb-dc"
 
         x0_rgb = x0[:, :3, :, :]
         x0_d = x0[:, 3:, :, :]
-        c0 = (x0_d > 0).float()
+        if x0.shape[1] == 4:
+            c0 = (x0_d > 0).float()
+        else:
+            c0 = x0[:, 4:5, :, :]
 
         self.x0_d = x0_d
         self.x0_rgb = x0_rgb

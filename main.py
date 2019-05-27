@@ -1,120 +1,152 @@
-
+import sys
 import trainer
 import dataloaders.dataloader_factory as df
 import model_zoo.confidence_depth_framework as mc
 import torch
+import os
 import math
+import time
 
 
+def create_output_folder(args):
+    if isinstance(args.dcnet_pretrained, bool):
+        pretrain_text= str(args.dcnet_pretrained)
+    else:
+        head, tail = os.path.split(args.dcnet_pretrained)
+        pretrain_text=tail
+    current_time = time.strftime('%Y-%m-%d@%H-%M-%S')
+    if args.output:
+        output_directory = os.path.join('results', '{}_{}'.format(args.output,current_time))
+    else:
+        output_directory = os.path.join('results',
+            '{}.spl={}.mod={}.inp={}.overall={}.dcnet={}.confnet={}.lossnet={}.crit={}.div={}.lr={}.lrs={}.bs={}.pre={}.time={}'.
+            format(args.data_type, args.num_samples,args.data_modality,args.dcnet_modality, args.training_mode, \
+                args.dcnet_arch,args.confnet_arch,args.lossnet_arch,  args.criterion, args.divider, args.lr,args.lrs, args.batch_size, \
+                pretrain_text,current_time))
+    return output_directory
 
-def test_main():
-    args_list = ['-a asd','-l']
-    parser = trainer.create_command_parser()
-    args = parser.parse_args(args_list)
-    trainer.main(args)
+
+def create_eval_output_folder(args):
+    current_time = time.strftime('%Y-%m-%d@%H-%M-%S')
+    if args.output:
+        output_directory = os.path.join('results', '{}_{}'.format(args.output,current_time))
+    else:
+        output_directory = os.path.join('results','eval.time={}'.format(current_time))
+    return output_directory
 
 
-def test_raw():
-    val_loader, _ = trainer.create_data_loaders('/media/lucas/lucas-ds2-1tb/dataset_small_v11', loader_type='val')
-    train_loader, _ = trainer.create_data_loaders('/media/lucas/lucas-ds2-1tb/dataset_small_v11', loader_type='train')
+def save_arguments(args,output_folder):
+    with open(os.path.join(output_folder,'params.txt'), 'w') as paramsfile:
+        for arg, value in sorted(vars(args).items()):
+            if isinstance(value, torch.nn.Module):
+                value = 'nn.Module argument'
+            paramsfile.write("{}: {}\n".format(arg, value))
+
+
+def main_func(args):
 
     cdf = mc.ConfidenceDepthFrameworkFactory()
-    cdfmodel = mc.ConfidenceDepthFrameworkModel()
+    val_loader, _ = df.create_data_loaders(args.data_path
+                                           , loader_type='val'
+                                           , data_type= args.data_type
+                                           , modality= args.data_modality
+                                           , num_samples= args.num_samples
+                                           , depth_divider= args.divider
+                                           , max_depth= args.max_depth
+                                           , max_gt_depth= args.max_gt_depth
+                                           , workers= args.workers
+                                           , batch_size=1)
+    if not args.evaluate:
+        train_loader, _ = df.create_data_loaders(args.data_path
+                                                 , loader_type='train'
+                                                 , data_type=args.data_type
+                                                 , modality=args.data_modality
+                                                 , num_samples=args.num_samples
+                                                 , depth_divider=args.divider
+                                                 , max_depth=args.max_depth
+                                                 , max_gt_depth=args.max_gt_depth
+                                                 , workers=args.workers
+                                                 , batch_size=8)
 
-    dc_model = cdf.create_dc_model(model_arch='resnet18', pretrained_args='resnet', input_type='rgbd',
-                                   output_type='dc').cuda()
-    conf_model = cdf.create_conf_model(model_arch='forward', pretrained_args=None, dc_model=dc_model).cuda()
-    loss_dc_model = cdf.create_dc_model(model_arch='resnet18', pretrained_args='resnet', input_type='rgbdc',
-                                        output_type='d').cuda()
+    # evaluation mode
+    if args.evaluate:
+        cdfmodel,loss, epoch = mc.resume(args.evaluate,True)
+        output_directory = create_eval_output_folder(args)
+        trainer.validate(val_loader, cdfmodel, loss, epoch, output_directory)
+        return
 
-    cdfmodel.dc_model = dc_model
-    cdfmodel.conf_model = conf_model
-    cdfmodel.loss_dc_model = loss_dc_model
+    output_directory = create_output_folder(args)
+    if not os.path.exists(output_directory):
+        os.makedirs(output_directory)
 
-    loss = cdf.create_loss('l2', True, 0.5).cuda()
+    # optionally resume from a checkpoint
+    if args.resume:
+        cdfmodel, loss, loss_def, best_result_error, optimizer, scheduler = mc.resume(args.resume,False)
 
-    for i, (input, target, scale) in enumerate(train_loader):
-        input_cu = input.cuda()
-        target_cu = target.cuda()
-        d1, c1, d2 = cdfmodel(input_cu[:, :4, :, :])
-        error = loss(input_cu[:, 3:4, :, :], d1, d2, target_cu, 0)
-        print(loss.loss)
-        error.backward()
-        print('.')
+    # create new model
+    else:
+        cdfmodel = cdf.create_model(args.dcnet_modality, args.training_mode, args.dcnet_arch, args.dcnet_pretrained, args.confnet_arch, args.confnet_pretrained, args.lossnet_arch, args.lossnet_pretrained)
+        cdfmodel, opt_parameters = cdf.to_device(cdfmodel)
+        optimizer, scheduler = trainer.create_optimizer(args.optimizer, opt_parameters, args.momentum, args.weight_decay, args.lr, args.lrs, args.lrm)
+        loss, loss_definition = cdf.create_loss(args.criterion, ('ln' in args.training_mode), (0.5 if 'dc1' in args.training_mode else 1.0))
+        best_result_error = math.inf
 
-# def save_checkpoint(cdfmodel, optimizer, filename):
-#     # optionally resume from a checkpoint
-#     if resume:
-#         if os.path.isfile(resume):
-#             print_log("=> loading checkpoint '{}'".format(resume), log)
-#             checkpoint = torch.load(resume)
-#             recorder = checkpoint['recorder']
-#             start_epoch = checkpoint['epoch']
-#             scheduler.load_state_dict(checkpoint['scheduler'])
-#             net.load_state_dict(checkpoint['state_dict'])
-#             optimizer.load_state_dict(checkpoint['optimizer'])
-#             print_log("=> loaded checkpoint '{}' (epoch {})".format(resume, checkpoint['epoch']), log)
-#         else:
-#             print_log("=> no checkpoint found at '{}'".format(resume), log)
-#     else:
-#         print_log("=> did not use any checkpoint for {} model".format(arch), log)
-
-# def save_checkpoint(cdfmodel, optimizer,scheduler, filename):
-
-
-
-if __name__ == '__main__':
-    # service.py executed as script
-    # do something
-    print('hello')
-
-    val_loader,_ = df.create_data_loaders('/media/lucas/lucas-ds2-1tb/dataset_small_v11',loader_type='val',batch_size=1)
-    train_loader,_ = df.create_data_loaders('/media/lucas/lucas-ds2-1tb/dataset_small_v11',loader_type='train',batch_size=32)
-
-    cdf =  mc.ConfidenceDepthFrameworkFactory()
-    cdfmodel = cdf.create_model('rgbd','dc1-cf0-ln1','resnet18',None,'cbr3-c1',None,'resnet18',None)
-    cdfmodel,opt_parameters = cdf.to_device(cdfmodel)
-
-    optimizer, scheduler = trainer.create_optimizer('adam', opt_parameters, 0, 0, 0.00001, 100, 0.1)
-
-    loss,loss_definition = cdf.create_loss('l2',True,0.5)
-    # main_conf.save_checkpoint(cdf,cdfmodel,loss_definition,optimizer,scheduler,True,epoch,output_directory)
-    # loss = loss.cuda()
-    # model_state = cdf.get_state(cdfmodel)
-    # optimizer_state = main_conf.get_optimizer_state(optimizer, scheduler)
-    # checkpoint={}
-    # checkpoint['model_state'] = model_state
-    # checkpoint['optimizer_state'] = optimizer_state
-    # checkpoint['loss_definition'] = loss_definition
-    # torch.save(checkpoint, '/media/lucas/lucas-ds2-1tb/log_big_data1.pth.tar')
-    # checkload = torch.load('/media/lucas/lucas-ds2-1tb/log_big_data1.pth.tar')
-    #
-    # loss2,loss_def2 = cdf.create_loss_fromstate(checkload['loss_definition'])
-    # loss2 = loss2.cuda()
-    # cdfmodel2 = cdf.create_model_from_state(checkload['model_state']).cuda()
-    # optimizer2,scheduler2 = main_conf.create_optimizer_fromstate(cdfmodel2.opt_params(),checkload['optimizer_state'])
-    output_directory = './res1'
-    best_result = math.inf
-    for epoch in range(1, 30):
+    for epoch in range(0, args.epochs):
         trainer.train(train_loader, cdfmodel, loss, optimizer, output_directory, epoch)
-        epoch_result = trainer.validate(val_loader, cdfmodel, loss, epoch, output_directory)
+        epoch_result = trainer.validate(val_loader, cdfmodel, loss, epoch=epoch,print_frequency=args.print_freq,num_image_samples=args.val_images, output_folder=output_directory)
         scheduler.step(epoch)
 
-        is_best = epoch_result.rmse < best_result
+        is_best = epoch_result.rmse < best_result_error
         if is_best:
-            best_result = epoch_result.rmse
-            trainer.report_top_result(output_directory + '/best_result.txt', epoch, epoch_result)
+            best_result_error = epoch_result.rmse
+            trainer.report_top_result(os.path.join(output_directory, 'best_result.txt'), epoch, epoch_result)
             # if img_merge is not None:
             #     img_filename = output_directory + '/comparison_best.png'
             #     utils.save_image(img_merge, img_filename)
 
-        trainer.save_checkpoint(cdf, cdfmodel, loss_definition, optimizer, scheduler, is_best, epoch, output_directory)
+        trainer.save_checkpoint(cdf, cdfmodel, loss_definition, optimizer, scheduler,best_result_error, is_best, epoch,
+                                output_directory)
 
 
-#
-# if __name__ == '__main__':
-#
-#     parser = create_command_parser()
-#     args = parser.parse_args(sys.argv[1:])
-#     print(args)
-#     #main()
+#test cases
+single_ged = ['--data-path', '/media/lucas/lucas-ds2-1tb/dataset_small_v11',
+                    '-j','8',
+                    '--dcnet-arch','ged_depthcompnet',
+                    '-c','l2']
+double_ged = ['--data-path', '/media/lucas/lucas-ds2-1tb/dataset_small_v11',
+                    '-j','8',
+                    '--training-mode','dc1-cf1-ln1',
+                    '--confnet-arch','cbr3-cbr1-c1',
+                    '--dcnet-arch','ged_depthcompnet',
+                    '--lossnet-arch', 'ged_depthcompnet',
+                    '-c','l2']
+double_ged_s = '--data-path /media/lucas/lucas-ds2-1tb/dataset_small_v11 ' \
+                    '-j 8 '\
+                    '--training-mode dc1-cf1-ln1 '\
+                    '--confnet-arch cbr3-cbr1-c1 '\
+                    '--dcnet-arch ged_depthcompnet '\
+                    '--lossnet-arch ged_depthcompnet ' \
+                    '--output lucas ' \
+                    '-c l2 '
+                    #'--max-gt-depth 50 '\
+
+                    
+if __name__ == '__main__':
+
+    if len(sys.argv) < 2:
+        trainer.create_command_parser().print_help()
+        exit(0)
+
+    if len(sys.argv) > 1 and sys.argv[1] == 'dummy':
+        print('dummy arguments')
+        arg_list = double_ged_s.split()
+    else:
+        print('using external arguments')
+        arg_list = sys.argv[1:]
+
+    arg_parser = trainer.create_command_parser()
+    args = arg_parser.parse_args(arg_list)
+    print(args)
+    main_func(args)
+
+
