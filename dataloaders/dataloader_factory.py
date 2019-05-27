@@ -4,7 +4,7 @@ import numpy as np
 from dataloaders.dense_to_sparse import UniformSampling, SimulatedStereo
 
 
-def create_data_loaders(data_path,data_type='visim',loader_type='val',arch='',sparsifier_type='uar',num_samples=500,modality='rgb-fd',depth_divider=1,max_depth=-1,max_gt_depth=-1,batch_size=8,workers=8):
+def create_data_loaders(data_path, data_type='visim', loader_type='val', arch='', sparsifier_type='uar', num_samples=500, modality='rgb-fd', depth_divisor=1, max_depth=-1, max_gt_depth=-1, batch_size=8, workers=8):
     # Data loading code
     print("=> creating data loaders ...")
 
@@ -32,19 +32,18 @@ def create_data_loaders(data_path,data_type='visim',loader_type='val',arch='',sp
     if data_type == 'kitti':
         from dataloaders.kitti_loader import KittiDepth
 
-
-        dataset = KittiDepth(data_path, split=loader_type )
+        dataset = KittiDepth(data_path, split=loader_type, depth_divisor=depth_divisor)
 
     elif data_type == 'visim':
         from dataloaders.visim_dataloader import VISIMDataset
 
         dataset = VISIMDataset(data_path, type=loader_type,
-            modality=modality, sparsifier=sparsifier, depth_divider=depth_divider, is_resnet= ('resnet' in arch),max_gt_depth=max_gt_depth)
+                               modality=modality, sparsifier=sparsifier, depth_divider=depth_divisor, is_resnet= ('resnet' in arch), max_gt_depth=max_gt_depth)
 
     elif data_type == 'visim_seq':
         from dataloaders.visim_dataloader import VISIMSeqDataset
         dataset = VISIMSeqDataset(data_path, type=loader_type,
-            modality=modality, sparsifier=sparsifier, depth_divider=depth_divider, is_resnet= ('resnet' in arch),max_gt_depth=max_gt_depth)
+                                  modality=modality, sparsifier=sparsifier, depth_divider=depth_divisor, is_resnet= ('resnet' in arch), max_gt_depth=max_gt_depth)
     else:
         raise RuntimeError('data type not found.' +
                            'The dataset must be either of kitti, visim or visim_seq.')

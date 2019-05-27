@@ -192,7 +192,7 @@ def get_rgb_near(path, args):
 class KittiDepth(data.Dataset):
     """A data loader for the Kitti dataset
     """
-    def __init__(self,data_path, split):
+    def __init__(self,data_path, split,depth_divisor):
         self.data_folder = data_path
         self.use_rgb = True
         self.use_g = False
@@ -200,6 +200,7 @@ class KittiDepth(data.Dataset):
         self.use_pose = False
         self.jitter = 0.1
         self.val = 'full'
+        self.depth_divisor = depth_divisor
         self.split = split
         paths, transform = get_paths_and_transform(split, self)
         self.paths = paths
@@ -237,20 +238,28 @@ class KittiDepth(data.Dataset):
         rgb, sparse, target, rgb_near = self.__getraw__(index)
         rgb, sparse, target, rgb_near = self.transform(rgb,sparse, target, rgb_near, self)
 
-        input_np = np.append(rgb/255.0, sparse, axis=2)
+        if self.depth_divisor == 0:
+            max_depth = max(sparse.max(),1.0)
+            scale = 10.0 / max_depth  # 10 is arbitrary. the network only converge in a especific range
+        else:
+            assert self.depth_divisor > 0 , 'divisor is negative'
+            scale = 1.0 / self.depth_divisor
+
+
+        input_np = np.append(rgb/255.0, sparse*scale, axis=2)
         input_np = input_np.transpose((2, 0, 1))
         confidence = np.zeros_like(input_np[0, :, :])
         valid_mask = ((input_np[3, :, :] > 0))
         confidence[valid_mask] = 1.0
 
         input_np = self.append_tensor3d(input_np, confidence)
-        target_np = target.transpose((2, 0, 1))
+        target_np = target.transpose((2, 0, 1))*scale
 
         input_ts = torch.from_numpy(input_np.copy()).float()
         target_ts = torch.from_numpy(target_np.copy()).float()
-        scale = 1
+        iscale = 1/scale
 
-        return input_ts, target_ts, scale
+        return input_ts, target_ts, iscale
 
     def __len__(self):
         return 80 #len(self.paths['gt'])

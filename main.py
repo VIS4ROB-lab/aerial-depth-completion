@@ -52,7 +52,7 @@ def main_func(args):
                                            , data_type= args.data_type
                                            , modality= args.data_modality
                                            , num_samples= args.num_samples
-                                           , depth_divider= args.divider
+                                           , depth_divisor= args.divider
                                            , max_depth= args.max_depth
                                            , max_gt_depth= args.max_gt_depth
                                            , workers= args.workers
@@ -63,7 +63,7 @@ def main_func(args):
                                                  , data_type=args.data_type
                                                  , modality=args.data_modality
                                                  , num_samples=args.num_samples
-                                                 , depth_divider=args.divider
+                                                 , depth_divisor=args.divider
                                                  , max_depth=args.max_depth
                                                  , max_gt_depth=args.max_gt_depth
                                                  , workers=args.workers
