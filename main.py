@@ -8,6 +8,7 @@ import math
 import time
 
 
+
 def create_output_folder(args):
     if isinstance(args.dcnet_pretrained, bool):
         pretrain_text= str(args.dcnet_pretrained)
@@ -93,6 +94,7 @@ def main_func(args):
         loss, loss_definition = cdf.create_loss(args.criterion, ('ln' in args.training_mode), (0.5 if 'dc1' in args.training_mode else 1.0))
         best_result_error = math.inf
 
+
     for epoch in range(0, args.epochs):
         trainer.train(train_loader, cdfmodel, loss, optimizer, output_directory, epoch)
         epoch_result = trainer.validate(val_loader, cdfmodel, loss, epoch=epoch,print_frequency=args.print_freq,num_image_samples=args.val_images, output_folder=output_directory)
@@ -133,6 +135,13 @@ double_ged_s = '--data-path /media/lucas/lucas-ds2-1tb/dataset_small_v11 ' \
                     '--epochs 30 '
                     #'--max-gt-depth 50 '\
 
+single_kitti_ged = ['--data-path', '/media/lucas/lucas-ds2-1tb/code/kitti',
+                    '--data-type', 'kitti',
+                    '-j','8',
+                    '--dcnet-arch','ged_depthcompnet',
+                    '-c','l2']
+
+
 eval_s = '--evaluate /media/lucas/lucas-ds2-1tb/code/uncertainty_aware_sparse_to_dense_rnn/results/lucas_2019-05-27@02-47-20/model_best.pth.tar --data-path /media/lucas/lucas-ds2-1tb/dataset_small_v11'
 
 
@@ -144,7 +153,7 @@ if __name__ == '__main__':
 
     if len(sys.argv) > 1 and sys.argv[1] == 'dummy':
         print('dummy arguments')
-        arg_list = double_ged_s.split()
+        arg_list = single_kitti_ged
     else:
         print('using external arguments')
         arg_list = sys.argv[1:]

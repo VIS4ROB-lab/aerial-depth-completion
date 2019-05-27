@@ -30,10 +30,10 @@ def create_data_loaders(data_path,data_type='visim',loader_type='val',arch='',sp
         sparsifier = SimulatedStereo(num_samples=num_samples, max_depth=max_depth)
 
     if data_type == 'kitti':
-        from dataloaders.kitti_dataloader import KITTIDataset
+        from dataloaders.kitti_loader import KittiDepth
 
-        dataset = KITTIDataset(data_path, type=loader_type,
-            modality=modality, sparsifier=sparsifier, depth_divider=depth_divider, is_resnet= ('resnet' in arch),max_gt_depth=max_gt_depth)
+
+        dataset = KittiDepth(data_path, split=loader_type )
 
     elif data_type == 'visim':
         from dataloaders.visim_dataloader import VISIMDataset

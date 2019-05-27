@@ -315,7 +315,7 @@ def write_minmax(size_image,dmin,dmax,cmin,cmax):
     canvas = FigureCanvas(fig)
     ax = fig.gca()
 
-    ax.text(0.0, 0.0, "dmin:{0:.4f}\ndmax:{1:.4f}\ncmax:{2:.4f}\ncmax:{3:.4f}".format(dmin,dmax,cmin,cmax), fontsize=45)
+    ax.text(0.0, 0.0, "dmin:{0:.4f}\ndmax:{1:.4f}\ncmin:{2:.4f}\ncmax:{3:.4f}".format(dmin,dmax,cmin,cmax), fontsize=45)
     ax.axis('off')
 
     canvas.draw()  # draw the canvas, cache the renderer
