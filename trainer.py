@@ -164,12 +164,14 @@ def resume(filename, factory,only_evaluation):
     checkpoint = torch.load(filename)
     loss, loss_def = factory.create_loss_fromstate(checkpoint['loss_definition'])
     cdfmodel = factory.create_model_from_state(checkpoint['model_state'])
+    cdfmodel, opt_parameters = factory.to_device(cdfmodel)
+    epoch = checkpoint['epoch']
     if not only_evaluation:
         best_result_error = checkpoint['best_result_error']
-        optimizer, scheduler = create_optimizer_fromstate(cdfmodel.opt_params(), checkpoint['optimizer_state'])
+        optimizer, scheduler = create_optimizer_fromstate(opt_parameters, checkpoint['optimizer_state'])
         return cdfmodel, loss, loss_def, best_result_error, optimizer, scheduler
 
-    return cdfmodel,loss
+    return cdfmodel,loss,epoch
 
 
 def save_checkpoint(factory,cdfmodel,loss_definition,optimizer, scheduler,best_result_error,is_best,epoch,output_directory):

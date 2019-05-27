@@ -70,9 +70,10 @@ def main_func(args):
 
     # evaluation mode
     if args.evaluate:
-        cdfmodel,loss, epoch = mc.resume(args.evaluate,True)
+        cdfmodel,loss, epoch = trainer.resume(args.evaluate,cdf,True)
         output_directory = create_eval_output_folder(args)
-        trainer.validate(val_loader, cdfmodel, loss, epoch, output_directory)
+        os.makedirs(output_directory,exist_ok=True)
+        trainer.validate(val_loader, cdfmodel, loss, epoch, num_image_samples=4, print_frequency=10, output_folder=output_directory)
         return
 
     output_directory = create_output_folder(args)
@@ -81,7 +82,7 @@ def main_func(args):
 
     # optionally resume from a checkpoint
     if args.resume:
-        cdfmodel, loss, loss_def, best_result_error, optimizer, scheduler = mc.resume(args.resume,False)
+        cdfmodel, loss, loss_def, best_result_error, optimizer, scheduler = trainer.resume(args.resume,cdf,False)
 
     # create new model
     else:
@@ -123,12 +124,15 @@ double_ged = ['--data-path', '/media/lucas/lucas-ds2-1tb/dataset_small_v11',
 double_ged_s = '--data-path /media/lucas/lucas-ds2-1tb/dataset_small_v11 ' \
                     '-j 8 '\
                     '--training-mode dc1-cf1-ln1 '\
-                    '--confnet-arch cbr3-cbr1-c1 '\
+                    '--confnet-arch cbr3-cbr1-c1res '\
                     '--dcnet-arch ged_depthcompnet '\
                     '--lossnet-arch ged_depthcompnet ' \
                     '--output lucas ' \
-                    '-c l2 '
+                    '-c l2 '\
+                    '--epochs 30 '
                     #'--max-gt-depth 50 '\
+
+eval_s = '--evaluate /media/lucas/lucas-ds2-1tb/code/uncertainty_aware_sparse_to_dense_rnn/results/lucas_2019-05-27@02-47-20/model_best.pth.tar --data-path /media/lucas/lucas-ds2-1tb/dataset_small_v11'
 
 
 if __name__ == '__main__':
@@ -139,7 +143,7 @@ if __name__ == '__main__':
 
     if len(sys.argv) > 1 and sys.argv[1] == 'dummy':
         print('dummy arguments')
-        arg_list = double_ged_s.split()
+        arg_list = eval_s.split()
     else:
         print('using external arguments')
         arg_list = sys.argv[1:]
