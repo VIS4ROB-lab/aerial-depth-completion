@@ -207,7 +207,7 @@ class MyDataloaderExt(data.Dataset):
 
     def __init__(self, root, type, sparsifier=None,max_gt_depth=math.inf, modality='rgb'):
         
-        imgs = []
+        # imgs = []
 
         if type == 'train':
             self.transform = self.train_transform
@@ -217,19 +217,35 @@ class MyDataloaderExt(data.Dataset):
             raise RuntimeError('invalid type of dataset')
 
         dataset_folder = os.path.join(root, type)
-        classes, class_to_idx = find_classes(dataset_folder)
-        imgs = make_dataset(dataset_folder, class_to_idx)
+        # classes, class_to_idx = find_classes(dataset_folder)
+        # imgs = make_dataset(dataset_folder, class_to_idx)
+        # self.classes = classes
+        # self.class_to_idx = class_to_idx
+
+        general_img_index = []
+        self.beginning_offset = 0
+
+        classes, class_to_idx = find_classes(dataset_folder,('ds' if '-k' in modality else None))
+        general_class_data = [None] * len(classes)
+        for i_class, curr_class in enumerate(classes):
+            class_images = load_class_dataset(dataset_folder, curr_class)
+            class_extras = None
+            if 'dsx' in curr_class:
+                class_extras, class_images = load_class_extras(root, type, class_images)
+            general_class_data[i_class] = dict(name=curr_class, images=class_images, extras=class_extras)
+
+            for i_img in range(self.beginning_offset, len(class_images)):
+                general_img_index.append((i_class, i_img))
+
+
+        assert len(general_img_index)>0, "Found 0 images in subfolders of: " + root + "\n"
+        print("Found {} images in {} folder.".format(len(general_img_index), type))
+        self.root = root
+        #self.imgs = imgs
+        self.general_img_index = general_img_index
+        self.general_class_data = general_class_data
         self.classes = classes
         self.class_to_idx = class_to_idx
-
-
-        assert len(imgs)>0, "Found 0 images in subfolders of: " + root + "\n"
-        print("Found {} images in {} folder.".format(len(imgs), type))
-        self.root = root
-        self.imgs = imgs
-        self.extra_ds = None
-        #self.classes = classes
-        #self.class_to_idx = class_to_idx
 
         self.sparsifier = sparsifier
         self.modality = Modality(modality)
@@ -364,15 +380,15 @@ class MyDataloaderExt(data.Dataset):
             result['fd'] = self.create_sparse_depth(rgb, depth)
 
         #using real keypoints from slam
-        if 'landmark_2d_data' in h5f:
-            if h5fextra is not None:
-                data_2d = np.array(h5fextra['landmark_2d_data'])
-            else:
-                if 'landmark_2d_data' not in h5f:
-                    return None
-                data_2d = np.array(h5f['landmark_2d_data'])
+        # if 'landmark_2d_data' in h5f:
+        if h5fextra is not None:
+            data_2d = np.array(h5fextra['landmark_2d_data'])
         else:
-            data_2d = None
+            if 'landmark_2d_data' not in h5f:
+                return None
+            data_2d = np.array(h5f['landmark_2d_data'])
+        # else:
+        #     data_2d = None
 
 
 
@@ -510,9 +526,14 @@ class MyDataloaderExt(data.Dataset):
 
     def __getitem__(self, index):
 
+        class_idx, img_idx = self.general_img_index[index]
+        class_entry = self.general_class_data[class_idx]
+        img_path = class_entry['images'][img_idx]
+        extra_path = (class_entry['extras'][img_idx] if class_entry['extras'] is not None else None)
+        channels_np = self.h5_loader_general(img_path, extra_path, self.modality)
+
         input_np = None
-        image_path,_ = self.imgs[index]
-        channels_np = self.h5_loader_general(image_path,None, self.modality)
+
 
         if channels_np is None:
             return None,None,None
@@ -568,7 +589,7 @@ class MyDataloaderExt(data.Dataset):
         return input_tensor, target_depth_tensor, channels_transformed_np['scale']
 
     def __len__(self):
-        return len(self.imgs)
+        return len(self.general_img_index)
 
 class SeqMyDataloaderExt(MyDataloaderExt):
 
