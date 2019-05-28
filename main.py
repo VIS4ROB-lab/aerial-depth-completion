@@ -124,6 +124,7 @@ join_double_ged = ['--data-path', '/media/lucas/lucas-ds2-1tb/dataset_small_v11'
                     '--training-mode','dc1-ln1',
                     '--dcnet-arch','ged_depthcompnet',
                     '--lossnet-arch', 'ged_depthcompnet',
+                   '--data-modality', 'rgb-kgt-bin',
                     '-c','absrel']
 
 double_ged = ['--data-path', '/media/lucas/lucas-ds2-1tb/dataset_small_v11',
