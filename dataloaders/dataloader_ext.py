@@ -207,8 +207,6 @@ class MyDataloaderExt(data.Dataset):
 
     def __init__(self, root, type, sparsifier=None,max_gt_depth=math.inf, modality='rgb'):
         
-        # imgs = []
-
         if type == 'train':
             self.transform = self.train_transform
         elif type == 'val':
@@ -217,10 +215,6 @@ class MyDataloaderExt(data.Dataset):
             raise RuntimeError('invalid type of dataset')
 
         dataset_folder = os.path.join(root, type)
-        # classes, class_to_idx = find_classes(dataset_folder)
-        # imgs = make_dataset(dataset_folder, class_to_idx)
-        # self.classes = classes
-        # self.class_to_idx = class_to_idx
 
         general_img_index = []
         self.beginning_offset = 0
@@ -241,7 +235,6 @@ class MyDataloaderExt(data.Dataset):
         assert len(general_img_index)>0, "Found 0 images in subfolders of: " + root + "\n"
         print("Found {} images in {} folder.".format(len(general_img_index), type))
         self.root = root
-        #self.imgs = imgs
         self.general_img_index = general_img_index
         self.general_class_data = general_class_data
         self.classes = classes
@@ -309,7 +302,7 @@ class MyDataloaderExt(data.Dataset):
 
         return res_voronoi,res_edt
 
- #   def h5_preprocess(self,index):
+
 
 #pose = none | gt | slam
     def h5_loader_general(self,img_path,extra_path,type,pose='none'):
@@ -387,8 +380,9 @@ class MyDataloaderExt(data.Dataset):
             data_2d = np.array(h5fextra['landmark_2d_data'])
         else:
             if 'landmark_2d_data' not in h5f:
-                return None
-            data_2d = np.array(h5f['landmark_2d_data'])
+                data_2d = None
+            else:
+                data_2d = np.array(h5f['landmark_2d_data'])
         # else:
         #     data_2d = None
 
@@ -536,7 +530,6 @@ class MyDataloaderExt(data.Dataset):
 
         input_np = None
 
-
         if channels_np is None:
             return None,None,None
 
@@ -544,10 +537,6 @@ class MyDataloaderExt(data.Dataset):
             channels_transformed_np = self.transform(channels_np)
         else:
             raise (RuntimeError("transform not defined"))
-
-        # for key, value in channels_transformed_np.items():
-        #     if key == 'gt_depth':
-        #         continue
 
         target_data = None
         target_data = channels_transformed_np['gt_depth']
@@ -576,17 +565,7 @@ class MyDataloaderExt(data.Dataset):
 
         input_tensor = self.to_tensor(input_np)
 
-
         target_depth_tensor = self.to_tensor(target_data).unsqueeze(0)
-
-
-        #target_depth_tensor = depth_tensor.unsqueeze(0)
-        #        if input_tensor.dim() == 2: #force to have a third dimension on the single channel input
-#            input_tensor = input_tensor.unsqueeze(0)
-#        if input_tensor.dim() < 2:
-#            raise (RuntimeError("transform not defined"))
- #       depth_tensor = totensor(depth_np)
-#        depth_tensor = depth_tensor.unsqueeze(0)
 
         return input_tensor, target_depth_tensor, channels_transformed_np['scale']
 
