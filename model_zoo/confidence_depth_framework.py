@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from model_zoo.nconv_sd import CNN as unguided_net
 from model_zoo.s2d_resnet import S2DResNet
+import os
 
 
 class ConfidenceDepthFrameworkFactory():
@@ -27,7 +28,7 @@ class ConfidenceDepthFrameworkFactory():
             else:
                 raise RuntimeError('Model: {} not found.'.format(model_arch))
             if pretrained_args:
-                a=1 #TODO load pretrained
+                self.load_weights(pretrained_args,model)
 
         return model
 
@@ -45,6 +46,9 @@ class ConfidenceDepthFrameworkFactory():
             model = ForwardConfidence(in_channels=in_channels)
         else:
             raise RuntimeError('Confidence net does not exist: {}'.format(model_arch))
+
+        if pretrained_args:
+            self.load_weights(pretrained_args, model)
 
         return model
 
@@ -65,6 +69,29 @@ class ConfidenceDepthFrameworkFactory():
 
     def create_loss_fromstate(self,definition):
         return self.create_loss(definition['criterion'],definition['dual'],definition['weight1'])
+
+    @staticmethod
+    def load_weights(filename,model):
+        parts = filename.split(':')
+        if len(parts) != 2 or not os.path.exists(parts[0]):
+            return
+        file, key = parts
+        checkpoint = torch.load(file)
+        weights = checkpoint['model_state'][key]
+        model_dict = model.state_dict()
+        # overwrite entries in the existing state dict
+        used = 0
+        ignored = 0
+        for k, v in weights.items():
+            if k in model_dict:
+                model_dict.update({k: v})
+                used += 1
+            else:
+                ignored += 1
+        print('=>loading weights: key {} - used {} - ignored {}'.format(key, used, ignored))
+
+        # load the new state dict
+        model.load_state_dict(model_dict)
 
     def create_model(self, input_type, overall_arch, dc_arch, dc_weights, conf_arch=None
                      , conf_weights=None, lossdc_arch=None, lossdc_weights=None):
@@ -170,6 +197,7 @@ class ConfidenceDepthFrameworkModel(torch.nn.Module):
         self.overall_arch = ''
         self.input_size = 0 #acceptable inputs are 3:rgb, 4:rgbd, 5:rgbdc
 
+
     def forward(self, input): #input rgbdc
         dc_x = input[:,:self.input_size,:,:]
         depth1,conf_x = self.dc_model(dc_x,(self.loss_dc_model is not None))
@@ -190,20 +218,61 @@ class ConfidenceDepthFrameworkModel(torch.nn.Module):
 
         return depth1, conf1, depth2
 
+    def train(self, mode=True):
+        print(mode)
+
+        self.training = mode
+
+        if 'dc1' in self.overall_arch:
+            self.dc_model.train(mode)
+        else:
+            self.dc_model.train(False)
+
+        if self.conf_model is not None:
+            if 'cf1' in self.overall_arch:
+                self.conf_model.train(mode)
+            else:
+                self.conf_model.train(False)
+
+        if self.loss_dc_model is not None:
+            if 'ln1' in self.overall_arch:
+                self.loss_dc_model.train(mode)
+            else:
+                self.loss_dc_model.train(False)
+
+        return self
+
     def opt_params(self):
+        def all_no_grad(model):
+            for param in model.parameters():
+                param.requires_grad = False
+
         opt_parameters = []
 
         if 'dc1' in self.overall_arch:
             assert self.dc_model is not None
             opt_parameters += self.dc_model.parameters()
 
+        if 'dc0' in self.overall_arch:
+            assert self.dc_model is not None
+            all_no_grad(self.dc_model)
+
         if 'cf1' in self.overall_arch:
             assert self.conf_model is not None
             opt_parameters += self.conf_model.parameters()
 
+        if 'cf0' in self.overall_arch:
+            assert self.conf_model is not None
+            all_no_grad(self.conf_model)
+
         if 'ln1' in self.overall_arch:
             assert self.loss_dc_model is not None
             opt_parameters += self.loss_dc_model.parameters()
+
+        if 'ln0' in self.overall_arch:
+            assert self.loss_dc_model is not None
+            all_no_grad(self.loss_dc_model)
+
         return opt_parameters
 
 
@@ -368,15 +437,7 @@ class GEDNet(nn.Module):
             nn.init.kaiming_normal_(m.weight)
             nn.init.constant_(m.bias, 0.01)
 
-        if isinstance(pretrained,nn.Module):
-            pretrained_dict = pretrained.state_dict()
-            model_dict = self.state_dict()
-            # 1. filter out unnecessary keys
-            pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
-            # 2. overwrite entries in the existing state dict
-            model_dict.update(pretrained_dict)
-            # 3. load the new state dict
-            self.load_state_dict(model_dict)
+
 
 
     def forward(self, x0, build_conf_input):

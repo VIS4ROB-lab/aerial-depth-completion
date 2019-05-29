@@ -116,14 +116,17 @@ def main_func(args):
 single_ged = ['--data-path', '/media/lucas/lucas-ds2-1tb/dataset_small_v11',
                     '-j','8',
                     '--dcnet-arch','ged_depthcompnet',
+                    '--dcnet-pretrained','/media/lucas/lucas-ds2-1tb/code/uncertainty_aware_sparse_to_dense_rnn/results/visim.spl=500.mod=rgb-fd-bin.inp=rgbd.overall=dc1_only.dcnet=ged_depthcompnet.confnet=cbr3-c1.lossnet=ged_depthcompnet.crit=l2.div=0.lr=0.0001.lrs=5.bs=8.pre=resnet.time=2019-05-27@22-31-42/model_best.pth.tar:dc_weights',
                     '--training-mode','dc1_only',
                     '-c','l2']
 
-join_double_ged = ['--data-path', '/media/lucas/lucas-ds2-1tb/dataset_big_v11',
+join_double_ged = ['--data-path', '/media/lucas/lucas-ds2-1tb/dataset_small_v11',
                     '-j','0',
                     '--training-mode','dc1-ln1',
                     '--dcnet-arch','ged_depthcompnet',
+                    # '--dcnet-pretrained','/media/lucas/lucas-ds2-1tb/code/uncertainty_aware_sparse_to_dense_rnn/results/visim.spl=500.mod=rgb-fd-bin.inp=rgbd.overall=dc1_only.dcnet=ged_depthcompnet.confnet=cbr3-c1.lossnet=ged_depthcompnet.crit=l2.div=0.lr=0.0001.lrs=5.bs=8.pre=resnet.time=2019-05-27@22-31-42/model_best.pth.tar:dc_weights',
                     '--lossnet-arch', 'ged_depthcompnet',
+                    '--lossnet-pretrained','/media/lucas/lucas-ds2-1tb/code/uncertainty_aware_sparse_to_dense_rnn/results/visim.spl=500.mod=rgb-fd-bin.inp=rgbd.overall=dc1_only.dcnet=ged_depthcompnet.confnet=cbr3-c1.lossnet=ged_depthcompnet.crit=l2.div=0.lr=0.0001.lrs=5.bs=8.pre=resnet.time=2019-05-27@22-31-42/model_best.pth.tar:dc_weights',
                    '--data-modality', 'rgb-fd-bin',
                     '-c','absrel']
 
