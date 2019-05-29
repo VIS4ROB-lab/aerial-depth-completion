@@ -110,7 +110,7 @@ def rgb2grayscale(rgb):
 class Modality():
     #modality_names = ['rgb', 'grey', 'fd', 'kor', 'kgt', 'kw', 'kde', 'dor', 'dde', 'dvor', 'd2dwor', 'd3dwde','d3dwor','wkde','wdde']
 
-    depth_channels_names = ['fd', 'kor', 'kde', 'kgt']
+    depth_channels_names = ['fd','kfd', 'kor', 'kde', 'kgt']
     metric_weight_names = []
     image_size_weight_names = ['bin','kw']
     weight_names = image_size_weight_names + metric_weight_names
@@ -378,6 +378,8 @@ class MyDataloaderExt(data.Dataset):
         #fake sparse data using the spasificator and ground-truth depth
         if 'fd' in type:
             result['fd'] = self.create_sparse_depth(rgb, depth)
+        if 'kfd' in type:
+            result['kfd'] = self.create_sparse_depth(rgb, depth)
 
         #using real keypoints from slam
         # if 'landmark_2d_data' in h5f:

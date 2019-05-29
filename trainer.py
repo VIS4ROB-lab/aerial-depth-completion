@@ -30,7 +30,7 @@ def create_command_parser():
     training_mode = ['dc1_only','dc1-ln0','dc1-ln1', 'dc0-cf1-ln0', 'dc1-cf1-ln0', 'dc1-cf1-ln1']
     confnet_exclusive_names = ['cbr3-c1','cbr3-cbr1-c1', 'cbr3-cbr1-c1res' ]#'cbr3-cbr1-c1','cbr5-cbr3-cbr1-c1'
     confnet_names = confnet_exclusive_names + ['join','none']
-    data_modality_types = ['rgb-fd-bin','rgb-kgt-bin','rgb-kor-bin','rgb-kor-kw']
+    data_modality_types = ['rgb-fd-bin','rgb-kfd-bin','rgb-kgt-bin','rgb-kor-bin','rgb-kor-kw']
     #confnet_input_type = ['c','cd','cw','cdw','cdwr', 'cdwrl','cdr', 'cdrl', 'clr','lr'] #'c','cd','cw','cdw','cdwr', 'cdwrl','cdr', 'cdrl', 'clr'
 
     loss_names = ['l1', 'l2', 'il1', 'absrel']
