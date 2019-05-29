@@ -107,8 +107,8 @@ def load_class_extras(data_folder, type, image_list):
 def rgb2grayscale(rgb):
     return rgb[0,:,:] * 0.2989 + rgb[1,:,:] * 0.587 + rgb[2,:,:] * 0.114
 
-class Modality():
-    #modality_names = ['rgb', 'grey', 'fd', 'kor', 'kgt', 'kw', 'kde', 'dor', 'dde', 'dvor', 'd2dwor', 'd3dwde','d3dwor','wkde','wdde']
+
+class Modality:
 
     depth_channels_names = ['fd','kfd', 'kor', 'kde', 'kgt']
     metric_weight_names = []
