@@ -278,6 +278,7 @@ def merge_into_row_with_gt2(rgb, input_depth,input_conf, in_gt_depth , out_depth
         out_depth2_cpu = np.zeros_like(depth_input_cpu)
 
     target_depth_mask = depth_target_cpu > 10e-5
+    sparse_depth_mask = depth_input_cpu < 10e-5
 
 
 #depth colormap
@@ -285,9 +286,11 @@ def merge_into_row_with_gt2(rgb, input_depth,input_conf, in_gt_depth , out_depth
     d_max = np.max(depth_target_cpu)
 
     depth_input_col = colored_depthmap2(depth_input_cpu, d_min, d_max)
+    depth_input_col[sparse_depth_mask,:] = 0
     depth_target_col = colored_depthmap2(depth_target_cpu, d_min, d_max)
     depth_pred_col = colored_depthmap2(depth_pred_cpu, d_min, d_max)
     depth2_pred_col = colored_depthmap2(out_depth2_cpu, d_min, d_max)
+    depth_target_col[~target_depth_mask, :] = 0
 
 #conf_colormap
     c_min = np.min(out_conf_cpu[target_depth_mask])
@@ -295,15 +298,19 @@ def merge_into_row_with_gt2(rgb, input_depth,input_conf, in_gt_depth , out_depth
 
     out_conf_col = colored_depthmap2(out_conf_cpu, c_min, c_max)
     depth_conf_col = colored_depthmap2(depth_conf_cpu)
+    depth_conf_col[sparse_depth_mask,:] = 0
 
 
     hist = write_minmax(rgb.shape,d_min,d_max,c_min,c_max)
 
+
     abs_diff = np.absolute((depth_pred_cpu - depth_target_cpu))
     absrel = np.zeros_like(abs_diff)
     absrel[target_depth_mask] = abs_diff[target_depth_mask]/ depth_target_cpu[target_depth_mask]
-    diff_col_abs = colored_depthmap(abs_diff, 0, 5)
-    diff_col_rel = colored_depthmap(absrel, 0, 0.1)
+    diff_col_abs = colored_depthmap2(abs_diff, 0, 5)
+    diff_col_abs[~target_depth_mask,:]=0
+    diff_col_rel = colored_depthmap2(absrel, 0, 0.1)
+    diff_col_rel[~target_depth_mask, :] = 0
 
     img_merge = np.hstack([rgb, depth_input_col, depth_conf_col, depth_target_col, depth_pred_col,
                            depth2_pred_col, out_conf_col, diff_col_abs, diff_col_rel, hist])

@@ -427,7 +427,7 @@ class GEDNet(nn.Module):
             if self.out_channels == 1:
                 features = torch.cat((last_layer_input,xout_d, cout_d,x10), 1) # 32 + 2 + 1 + 1
             else: #out_channels == 2
-                features = x10[:,1:2,:,:] #it is already the confidence
+                features = torch.sigmoid(x10[:,1:2,:,:]) #it is already the confidence
         else:
             features = None
 

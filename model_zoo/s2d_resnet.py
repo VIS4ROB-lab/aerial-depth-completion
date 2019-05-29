@@ -230,7 +230,7 @@ class S2DResNet(nn.Module):
             if self.out_channels == 1:
                 features = nn.functional.interpolate(features, size=resolution, mode='bilinear', align_corners=True)
             else: #out_channels == 2
-                features = x[:,1:2,:,:] #it is already the confidence
+                features = torch.sigmoid(x[:, 1:2, :, :])#it is already the confidence
         else:
             features = None
 
