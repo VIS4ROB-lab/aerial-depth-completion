@@ -13,8 +13,11 @@ def create_output_folder(args):
     if isinstance(args.dcnet_pretrained, bool):
         pretrain_text= str(args.dcnet_pretrained)
     else:
-        head, tail = os.path.split(args.dcnet_pretrained)
-        pretrain_text=tail
+        parts = args.dcnet_pretrained.split('@')
+        pretrain_text = parts[-1]
+        if(len(pretrain_text) > 10):
+            pretrain_text = pretrain_text[-10:]
+
     current_time = time.strftime('%Y-%m-%d@%H-%M-%S')
     if args.output:
         output_directory = os.path.join('results', '{}_{}'.format(args.output,current_time))
@@ -132,10 +135,13 @@ join_double_ged = ['--data-path', '/media/lucas/lucas-ds2-1tb/dataset_small_v11'
 
 double_ged = ['--data-path', '/media/lucas/lucas-ds2-1tb/dataset_small_v11',
                     '-j','8',
-                    '--training-mode','dc1-cf1-ln1',
-                    '--confnet-arch','cbr3-cbr1-c1',
-                    '--dcnet-arch','ged_depthcompnet',
+                    '--training-mode', 'dc0-cf1-ln0',
+                    '--confnet-arch', 'cbr3-c1',
+                    '--confnet-pretrained', '/media/lucas/lucas-ds2-1tb/code/uncertainty_aware_sparse_to_dense_rnn/pretrain/visim.spl=500.mod=rgb-fd-bin.inp=rgbd.overall=dc1-cf1-ln1.dcnet=ged_depthcompnet.confnet=cbr3-c1.lossnet=ged_depthcompnet.crit=l2.div=0.lr=0.0001.lrs=5.bs=8.pre=resnet.time=2019-05-27@05-14-53/model_best.pth.tar:conf_weights',
+                    '--dcnet-arch', 'ged_depthcompnet',
+                    '--dcnet-pretrained', '/media/lucas/lucas-ds2-1tb/code/uncertainty_aware_sparse_to_dense_rnn/pretrain/visim.spl=500.mod=rgb-fd-bin.inp=rgbd.overall=dc1-cf1-ln1.dcnet=ged_depthcompnet.confnet=cbr3-c1.lossnet=ged_depthcompnet.crit=l2.div=0.lr=0.0001.lrs=5.bs=8.pre=resnet.time=2019-05-27@05-14-53/model_best.pth.tar:lossdc_weights',
                     '--lossnet-arch', 'ged_depthcompnet',
+                    '--lossnet-pretrained', '/media/lucas/lucas-ds2-1tb/code/uncertainty_aware_sparse_to_dense_rnn/pretrain/visim.spl=500.mod=rgb-fd-bin.inp=rgbd.overall=dc1-cf1-ln1.dcnet=ged_depthcompnet.confnet=cbr3-c1.lossnet=ged_depthcompnet.crit=l2.div=0.lr=0.0001.lrs=5.bs=8.pre=resnet.time=2019-05-27@05-14-53/model_best.pth.tar:lossdc_weights',
                     '-c','l2']
 double_ged_s = '--data-path /media/lucas/lucas-ds2-1tb/dataset_small_v11 ' \
                     '-j 8 '\
@@ -167,7 +173,7 @@ if __name__ == '__main__':
 
     if len(sys.argv) > 1 and sys.argv[1] == 'dummy':
         print('dummy arguments')
-        arg_list = join_double_ged
+        arg_list = double_ged
     else:
         print('using external arguments')
         arg_list = sys.argv[1:]
