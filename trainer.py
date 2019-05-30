@@ -27,7 +27,7 @@ def create_command_parser():
     #image_type_source = ['g', 'rgb','undefined']
     #sparse_depth_source = ['kgt','kor','kde','fd','undefined']
     #sparse_conf_source = ['bin', 'kw','undefined']
-    training_mode = ['dc1_only','dc1-ln0','dc1-ln1', 'dc0-cf1-ln0', 'dc1-cf1-ln0', 'dc1-cf1-ln1']
+    training_mode = ['dc1_only','dc1-ln0','dc1-ln1', 'dc0-cf1-ln0', 'dc1-cf1-ln0', 'dc0-cf1-ln1', 'dc1-cf1-ln1']
     confnet_exclusive_names = ['cbr3-c1','cbr3-cbr1-c1', 'cbr3-cbr1-c1res' ]#'cbr3-cbr1-c1','cbr5-cbr3-cbr1-c1'
     confnet_names = confnet_exclusive_names + ['join','none']
     data_modality_types = ['rgb-fd-bin','rgb-kfd-bin','rgb-kgt-bin','rgb-kor-bin','rgb-kor-kw']
