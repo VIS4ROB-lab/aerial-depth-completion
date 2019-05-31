@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from model_zoo.nconv_sd import CNN as unguided_net
 from model_zoo.s2d_resnet import S2DResNet
+from model_zoo.s2d_u_resnet import S2DUResNet
 from collections import OrderedDict
 import os
 
@@ -21,6 +22,9 @@ class ConfidenceDepthFrameworkFactory():
         if model_arch == 'resnet18':
             #upproj is the best and default in the sparse-to-dense icra 2018 paper
             model = S2DResNet(layers=18, decoder='upproj', in_channels=len(input_type), out_channels=len(output_type), pretrained=use_resnet_pretrained)
+        if model_arch == 'udepthcompnet18':
+            model = S2DUResNet(layers=18, in_channels=len(input_type), out_channels=len(output_type), pretrained=use_resnet_pretrained)
+
         else:
             if model_arch == 'gms_depthcompnet':
                 model = NconvMS(out_channels=len(output_type))
@@ -28,8 +32,9 @@ class ConfidenceDepthFrameworkFactory():
                 model = GEDNet(out_channels=len(output_type))
             else:
                 raise RuntimeError('Model: {} not found.'.format(model_arch))
-            if pretrained_args:
-                self.load_weights(pretrained_args,model)
+
+        if not use_resnet_pretrained and pretrained_args:
+            self.load_weights(pretrained_args,model)
 
         return model
 

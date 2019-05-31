@@ -53,8 +53,8 @@ def create_command_parser():
     parser.add_argument('--dcnet-arch', metavar='ARCH', default='resnet18', choices=model_names,
                         help='model architecture: ' + ' | '.join(model_names) + ' (default: resnet18)')
 
-    parser.add_argument('--dcnet-pretrained', default='resnet', type=str, metavar='PATH',
-                        help='path to pretraining checkpoint (default: buildin resnet)')
+    parser.add_argument('--dcnet-pretrained', default='', type=str, metavar='PATH',
+                        help='path to pretraining checkpoint (default: )')
 
     parser.add_argument('--dcnet-modality', metavar='MODALITY', default='rgbd', choices=model_input_type, type=str,
                         help='modality: ' + ' | '.join(model_input_type) + ' (default: rgbd)')
@@ -63,14 +63,14 @@ def create_command_parser():
     parser.add_argument('--confnet-arch', metavar='ARCH', default='cbr3-c1', choices=confnet_names,
                         help='model architecture: ' + ' | '.join(confnet_names) + ' (default: cbr3-c1)')
 
-    parser.add_argument('--confnet-pretrained', default='none', type=str, metavar='PATH',
-                        help='path to pretraining checkpoint (default: none)')
+    parser.add_argument('--confnet-pretrained', default='', type=str, metavar='PATH',
+                        help='path to pretraining checkpoint (default: )')
     #lossnet
     parser.add_argument('--lossnet-arch', metavar='ARCH', default='ged_depthcompnet', choices=model_names,
                         help='model architecture: ' + ' | '.join(model_names) + ' (default: ged_depthcompnet)')
 
-    parser.add_argument('--lossnet-pretrained', default='none', type=str, metavar='PATH',
-                        help='path to pretraining checkpoint (default: none)')
+    parser.add_argument('--lossnet-pretrained', default='', type=str, metavar='PATH',
+                        help='path to pretraining checkpoint (default: )')
 
     #input data
     parser.add_argument('--data-type', metavar='DATA', default='visim',
