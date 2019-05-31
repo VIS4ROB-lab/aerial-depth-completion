@@ -98,7 +98,7 @@ class ConfidencePixelwiseAverageMeter(object):
 
 
 class ConfidencePixelwiseThrAverageMeter(object):
-    def __init__(self,num_bins=200,top= 0.15):
+    def __init__(self,num_bins=200,top= 0.7):
         self.num_bins = num_bins
         self.thresholds = np.linspace(0, top, num_bins, endpoint=True)
         self.reset()
@@ -130,17 +130,19 @@ class ConfidencePixelwiseThrAverageMeter(object):
 
 
     def result(self):
-        res = [(None,None)] * self.num_bins
+        res = [(None,None,None)] * self.num_bins
         for pos, conf_index in np.ndenumerate(self.count):
             if self.count[pos] > 0:
                 res[pos[0]] = (self.absrel[pos]/ self.count[pos],self.recall[pos]/ self.count[pos],self.thresholds[pos])
+
         return res
 
     def print(self,filename):
         lines = self.result()
         with open(filename, 'w') as csvfile:
             for absrel, recall,thr in lines:
-                csvfile.write('{},{},{}\n'.format(thr,recall/1000.0,absrel/1000.0))
+                if recall is not None:
+                    csvfile.write('{},{},{}\n'.format(thr,recall/1000.0,absrel/1000.0))
 
 
 

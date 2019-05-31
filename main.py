@@ -78,7 +78,7 @@ def main_func(args):
         output_directory = create_eval_output_folder(args)
         os.makedirs(output_directory)
         save_arguments(args,output_directory)
-        trainer.validate(val_loader, cdfmodel, loss, epoch, num_image_samples=4, print_frequency=10, output_folder=output_directory)
+        trainer.validate(val_loader, cdfmodel, loss, epoch,print_frequency=args.print_freq,num_image_samples=args.val_images, output_folder=output_directory, conf_recall=args.pr)
         return
 
     output_directory = create_output_folder(args)
@@ -135,7 +135,7 @@ join_double_ged = ['--data-path', '/media/lucas/lucas-ds2-1tb/dataset_small_v11'
 
 double_ged = ['--data-path', '/media/lucas/lucas-ds2-1tb/dataset_small_v11',
                     '-j','8',
-                    '--training-mode', 'dc0-cf1-ln0',
+                    '--training-mode', 'dc0-cf1-ln1',
                     '--confnet-arch', 'cbr3-c1',
                     '--confnet-pretrained', '/media/lucas/lucas-ds2-1tb/code/uncertainty_aware_sparse_to_dense_rnn/pretrain/visim.spl=500.mod=rgb-fd-bin.inp=rgbd.overall=dc1-cf1-ln1.dcnet=ged_depthcompnet.confnet=cbr3-c1.lossnet=ged_depthcompnet.crit=l2.div=0.lr=0.0001.lrs=5.bs=8.pre=resnet.time=2019-05-27@05-14-53/model_best.pth.tar:conf_weights',
                     '--dcnet-arch', 'ged_depthcompnet',
@@ -161,8 +161,9 @@ single_kitti_ged = ['--data-path', '/media/lucas/lucas-ds2-1tb/code/kitti',
                     '--batch-size','4',
                     '-c','l2']
 
-
+test_model = '/media/lucas/lucas-ds2-1tb/code/uncertainty_aware_sparse_to_dense_rnn/pretrain/visim.spl=500.mod=rgb-fd-bin.inp=rgbd.overall=dc0-cf1-ln1.dcnet=ged_depthcompnet.confnet=cbr3-c1.lossnet=ged_depthcompnet.crit=absrel.div=0.lr=0.0001.lrs=5.bs=8.pre=dc_weights.time=2019-05-30@12-44-09/checkpoint-7.pth.tar'
 eval_s = '--evaluate /media/lucas/lucas-ds2-1tb/code/uncertainty_aware_sparse_to_dense_rnn/results/lucas_2019-05-27@02-47-20/model_best.pth.tar --data-path /media/lucas/lucas-ds2-1tb/dataset_small_v11'
+eval_conf_s = '--evaluate '+ test_model + ' --data-path /media/lucas/lucas-ds2-1tb/dataset_big_v11 --output /media/lucas/lucas-ds2-1tb/code/eval -pr --val-images 100'
 
 
 if __name__ == '__main__':
@@ -173,7 +174,7 @@ if __name__ == '__main__':
 
     if len(sys.argv) > 1 and sys.argv[1] == 'dummy':
         print('dummy arguments')
-        arg_list = double_ged
+        arg_list = eval_conf_s.split()
     else:
         print('using external arguments')
         arg_list = sys.argv[1:]

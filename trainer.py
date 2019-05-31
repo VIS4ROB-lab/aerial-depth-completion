@@ -129,6 +129,8 @@ def create_command_parser():
                         help="path to latest checkpoint (default: empty)")
     parser.add_argument('-e', '--evaluate', dest='evaluate', type=str, default='', metavar='PATH',
                         help='evaluate model on validation set (default: empty)')
+    parser.add_argument('-pr', '--precision-recall', dest='pr', default=False, action='store_true',
+                        help='calculate the pr')
 
     return parser
 
@@ -332,8 +334,11 @@ class ResultSampleImage():
 
 
 
-def validate(val_loader, model,criterion, epoch, num_image_samples=4, print_frequency=10, output_folder=None):
+def validate(val_loader, model,criterion, epoch, num_image_samples=4, print_frequency=10, output_folder=None, conf_recall=False):
     average_meter = [AverageMeter(), AverageMeter()]
+
+    if conf_recall:
+        conf_avg_meter = ConfidencePixelwiseThrAverageMeter()
 
     model.eval()  # switch to train mode
     end = time.time()
@@ -386,12 +391,18 @@ def validate(val_loader, model,criterion, epoch, num_image_samples=4, print_freq
                 print_error('Val', num_total_samples, average_meter[1].average(), result[1],
                             criterion.loss, data_time, gpu_time, i, epoch)
 
+        if conf_recall and (i % 10 == 0):
+            conf_avg_meter.evaluate(prediction[0][:, 0:1, :, :].data, prediction[1][:, 0:1, :, :].data, target_depth.data)
+
         rsi.update(i, input, prediction, target_depth)
 
     final_result = average_meter[0].average()
     report_epoch_error(os.path.join(output_folder, 'val.csv'), epoch, final_result)
     if prediction[2] is not None:
         report_epoch_error(os.path.join(output_folder, 'val.csv'), epoch, average_meter[1].average())
+
+    if conf_recall:
+        conf_avg_meter.print(os.path.join(output_folder, 'pr.csv'))
 
     return final_result
 

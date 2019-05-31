@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from model_zoo.nconv_sd import CNN as unguided_net
 from model_zoo.s2d_resnet import S2DResNet
+from collections import OrderedDict
 import os
 
 
@@ -72,12 +73,18 @@ class ConfidenceDepthFrameworkFactory():
 
     @staticmethod
     def load_weights(filename,model):
-        parts = filename.split(':')
-        if len(parts) != 2 or not os.path.exists(parts[0]):
-            return
-        file, key = parts
-        checkpoint = torch.load(file)
-        weights = checkpoint['model_state'][key]
+        if isinstance(filename,OrderedDict):
+            weights = filename
+            key = 'dict'
+        else:
+            parts = filename.split(':')
+            if len(parts) != 2 or not os.path.exists(parts[0]):
+                return
+            file, key = parts
+            checkpoint = torch.load(file)
+            weights = checkpoint['model_state'][key]
+
+
         model_dict = model.state_dict()
         # overwrite entries in the existing state dict
         used = 0
