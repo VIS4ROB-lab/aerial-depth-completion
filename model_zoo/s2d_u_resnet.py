@@ -1,99 +1,10 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torchvision.models
-import collections
-import math
-
 from torchvision.models import resnet
 
+from model_zoo.nconv_sd import CNN as unguided_net
 
-
-class S2DResNet(nn.Module):
-    def __init__(self, layers, decoder, in_channels=3, out_channels=1, pretrained=True):
-
-        self.out_channels = out_channels
-        self.in_channels = in_channels
-        if out_channels == 2:
-            self.out_feature_channels = 1
-        else:
-            self.out_feature_channels = 16
-
-        if layers not in [18, 34, 50, 101, 152]:
-            raise RuntimeError('Only 18, 34, 50, 101, and 152 layer model are defined for ResNet. Got {}'.format(layers))
-
-        super(S2DResNet, self).__init__()
-        pretrained_model = torchvision.models.__dict__['resnet{}'.format(layers)](pretrained=pretrained)
-
-        if in_channels == 3:
-            self.conv1 = pretrained_model._modules['conv1']
-            self.bn1 = pretrained_model._modules['bn1']
-        else:
-            self.conv1 = nn.Conv2d(in_channels, 64, kernel_size=7, stride=2, padding=3, bias=False)
-            self.bn1 = nn.BatchNorm2d(64)
-            weights_init(self.conv1)
-            weights_init(self.bn1)
-
-        self.relu = pretrained_model._modules['relu']
-        self.maxpool = pretrained_model._modules['maxpool']
-        self.layer1 = pretrained_model._modules['layer1']
-        self.layer2 = pretrained_model._modules['layer2']
-        self.layer3 = pretrained_model._modules['layer3']
-        self.layer4 = pretrained_model._modules['layer4']
-
-        # clear memory
-        del pretrained_model
-
-        # define number of intermediate channels
-        if layers <= 34:
-            num_channels = 512
-        elif layers >= 50:
-            num_channels = 2048
-
-        self.conv2 = nn.Conv2d(num_channels,num_channels//2,kernel_size=1,bias=False)
-        self.bn2 = nn.BatchNorm2d(num_channels//2)
-        self.decoder = choose_decoder(decoder, num_channels//2)
-
-        # setting bias=true doesn't improve accuracy
-        self.conv3 = nn.Conv2d(num_channels//32,out_channels,kernel_size=3,stride=1,padding=1,bias=False)
-
-        # weight init
-        self.conv2.apply(weights_init)
-        self.bn2.apply(weights_init)
-        self.decoder.apply(weights_init)
-        self.conv3.apply(weights_init)
-
-    def forward(self, x, build_conf_input):
-        # resnet
-        resolution = (x.size()[2],x.size()[3])
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x = self.relu(x)
-        x = self.maxpool(x)
-        x = self.layer1(x)
-        x = self.layer2(x)
-        x = self.layer3(x)
-        x = self.layer4(x)
-
-        x = self.conv2(x)
-        x = self.bn2(x)
-
-        # decoder
-        features = self.decoder(x)
-        x = self.conv3(features)
-        x = nn.functional.interpolate(x,size=resolution, mode='bilinear', align_corners=True)
-
-        if build_conf_input:
-            if self.out_channels == 1:
-                features = nn.functional.interpolate(features, size=resolution, mode='bilinear', align_corners=True)
-            else: #out_channels == 2
-                features = torch.sigmoid(x[:, 1:2, :, :])#it is already the confidence
-        else:
-            features = None
-
-        depth = x[:, 0:1, :, :]
-
-        return depth, features
 
 def init_weights(m):
     if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
@@ -107,6 +18,7 @@ def init_weights(m):
     elif isinstance(m, nn.BatchNorm2d):
         m.weight.data.fill_(1)
         m.bias.data.zero_()
+
 
 def conv_bn_relu(in_channels, out_channels, kernel_size, \
         stride=1, padding=0, bn=True, relu=True):
@@ -126,6 +38,7 @@ def conv_bn_relu(in_channels, out_channels, kernel_size, \
 
     return layers
 
+
 def convt_bn_relu(in_channels, out_channels, kernel_size, \
         stride=1, padding=0, output_padding=0, bn=True, relu=True):
     bias = not bn
@@ -144,9 +57,10 @@ def convt_bn_relu(in_channels, out_channels, kernel_size, \
 
     return layers
 
+
 class S2DUResNet(nn.Module):
 
-    def __init__(self, layers=18, in_channels=3, out_channels=1, pretrained=True):
+    def __init__(self, layers=18, in_channels=3, out_channels=1, pretrained=True,unguided=False):
 
         self.out_channels = out_channels
         self.in_channels = in_channels
@@ -156,16 +70,25 @@ class S2DUResNet(nn.Module):
         else:
             self.out_feature_channels = 129
 
+
+
         assert (layers in [18, 34, 50, 101,
                            152]), 'Only layers 18, 34, 50, 101, and 152 are defined, but got {}'.format(layers)
         super(S2DUResNet, self).__init__()
         used_channels = 0
 
+        # Import the unguided network
+        self.unguided = unguided
+        extra_channel = 0
+        if unguided:
+            self.unguidednet = unguided_net()
+            extra_channel = 1
+
         if in_channels == 3: # rgb
             self.conv1_img = conv_bn_relu(3, 64, kernel_size=3, stride=1, padding=1)
         if in_channels == 4:  # rgbd
             self.conv1_img = conv_bn_relu(3, 48, kernel_size=3, stride=1, padding=1)
-            self.conv1_d = conv_bn_relu(1, 16, kernel_size=3, stride=1, padding=1)
+            self.conv1_d = conv_bn_relu(1+extra_channel, 16, kernel_size=3, stride=1, padding=1)
         if in_channels == 5:  # rgbd
             self.conv1_img = conv_bn_relu(3, 48, kernel_size=3, stride=1, padding=1)
             self.conv1_d = conv_bn_relu(2, 16, kernel_size=3, stride=1, padding=1)
@@ -209,11 +132,19 @@ class S2DUResNet(nn.Module):
             conv1 = self.conv1_img(x[:, :3, :, :])
         if self.in_channels == 4:
             conv1_img = self.conv1_img(x[:, :3, :, :])
-            conv1_d = self.conv1_d(x[:, 3:4, :, :])
+            if self.unguided:
+                densex,coutx = self.unguidednet(x[:, 3:4, :, :],(x[:, 3:4, :, :]>0).float())
+                conv1_d = self.conv1_d(torch.cat((densex, coutx), 1))
+            else:
+                conv1_d = self.conv1_d(x[:, 3:4, :, :])
             conv1 = torch.cat((conv1_d, conv1_img), 1)
         if self.in_channels == 5:
             conv1_img = self.conv1_img(x[:, :3, :, :])
-            conv1_d = self.conv1_d(x[:, 3:5, :, :])
+            if self.unguided:
+                densex,coutx = self.unguidednet(x[:, 3:4, :, :], x[:, 4:5, :, :])
+                conv1_d = self.conv1_d(torch.cat((densex, coutx), 1))
+            else:
+                conv1_d = self.conv1_d(x[:, 3:5, :, :])
             conv1 = torch.cat((conv1_d, conv1_img), 1)
 
         conv2 = self.conv2(conv1)

@@ -22,7 +22,7 @@ def create_command_parser():
 
     import argparse
 
-    model_names = ['resnet18', 'udepthcompnet18','erfdepthcompnet','gms_depthcompnet','ged_depthcompnet']
+    model_names = ['resnet18', 'udepthcompnet18','erfdepthcompnet','gms_depthcompnet','ged_depthcompnet','gudepthcompnet18']
     model_input_type = ['rgb','rgbd','rgbdw'] #['d','dw','c','cd','cdw']
     #image_type_source = ['g', 'rgb','undefined']
     #sparse_depth_source = ['kgt','kor','kde','fd','undefined']

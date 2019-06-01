@@ -22,8 +22,10 @@ class ConfidenceDepthFrameworkFactory():
         if model_arch == 'resnet18':
             #upproj is the best and default in the sparse-to-dense icra 2018 paper
             model = S2DResNet(layers=18, decoder='upproj', in_channels=len(input_type), out_channels=len(output_type), pretrained=use_resnet_pretrained)
-        if model_arch == 'udepthcompnet18':
-            model = S2DUResNet(layers=18, in_channels=len(input_type), out_channels=len(output_type), pretrained=use_resnet_pretrained)
+        elif model_arch == 'udepthcompnet18':
+            model = S2DUResNet(layers=18, in_channels=len(input_type), out_channels=len(output_type), pretrained=use_resnet_pretrained,unguided=False)
+        elif model_arch == 'gudepthcompnet18':
+            model = S2DUResNet(layers=18, in_channels=len(input_type), out_channels=len(output_type), pretrained=use_resnet_pretrained,unguided=True)
 
         else:
             if model_arch == 'gms_depthcompnet':
