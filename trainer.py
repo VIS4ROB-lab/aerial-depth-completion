@@ -376,7 +376,10 @@ def validate(val_loader, model,criterion, epoch, num_image_samples=4, print_freq
 
         # measure accuracy and record loss
         result = [Result(), Result()]
-        result[0].evaluate(prediction[0][:, 0:1, :, :].data, target_depth.data)
+        if prediction[1] is not None:
+            result[0].evaluate(prediction[0][:, 0:1, :, :].data, target_depth.data,prediction[1][:, 0:1, :, :].data)
+        else:
+            result[0].evaluate(prediction[0][:, 0:1, :, :].data, target_depth.data)
         average_meter[0].update(result[0], gpu_time, data_time, criterion.loss, input.size(0))
         if prediction[2] is not None:
             result[1].evaluate(prediction[2][:, 0:1, :, :].data, target_depth.data)

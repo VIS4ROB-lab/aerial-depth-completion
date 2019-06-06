@@ -14,7 +14,8 @@ class Result(object):
         self.delta1, self.delta2, self.delta3 = 0, 0, 0
         self.data_time, self.gpu_time = 0, 0
         self.loss0, self.loss1,self.loss2 = 0, 0,0
-        self.threhold = 0#0.0052763819095477385
+        self.threhold = 0
+
 
     def set_to_worst(self):
         self.irmse, self.imae = np.inf, np.inf

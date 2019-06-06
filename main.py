@@ -118,8 +118,8 @@ def main_func(args):
 #test cases
 single_ged = ['--data-path', '/media/lucas/lucas-ds2-1tb/dataset_small_v11',
                     '-j','8',
-                    '-b','1',
-                    '--dcnet-arch','uresnet18',
+                    '-s','10000',
+                    '--dcnet-arch','ged_depthcompnet',
                     '--dcnet-pretrained','/media/lucas/lucas-ds2-1tb/code/uncertainty_aware_sparse_to_dense_rnn/results/visim.spl=500.mod=rgb-fd-bin.inp=rgbd.overall=dc1_only.dcnet=ged_depthcompnet.confnet=cbr3-c1.lossnet=ged_depthcompnet.crit=l2.div=0.lr=0.0001.lrs=5.bs=8.pre=resnet.time=2019-05-27@22-31-42/model_best.pth.tar:dc_weights',
                     '--training-mode','dc1_only',
                     '-c','l2']
@@ -152,6 +152,7 @@ double_ged = ['--data-path', '/media/lucas/lucas-ds2-1tb/dataset_small_v11',
                     '--lossnet-arch', 'ged_depthcompnet',
                     '--lossnet-pretrained', '/media/lucas/lucas-ds2-1tb/code/uncertainty_aware_sparse_to_dense_rnn/pretrain/visim.spl=500.mod=rgb-fd-bin.inp=rgbd.overall=dc1-cf1-ln1.dcnet=ged_depthcompnet.confnet=cbr3-c1.lossnet=ged_depthcompnet.crit=l2.div=0.lr=0.0001.lrs=5.bs=8.pre=resnet.time=2019-05-27@05-14-53/model_best.pth.tar:lossdc_weights',
                     '-c','l2']
+
 double_ged_s = '--data-path /media/lucas/lucas-ds2-1tb/dataset_small_v11 ' \
                     '-j 8 '\
                     '--training-mode dc1-cf1-ln1 '\
@@ -162,7 +163,6 @@ double_ged_s = '--data-path /media/lucas/lucas-ds2-1tb/dataset_small_v11 ' \
                     '-c l2 '\
                     '--epochs 30 '
 
-
 single_kitti_ged = ['--data-path', '/media/lucas/lucas-ds2-1tb/code/kitti',
                     '--data-type', 'kitti',
                     '-j','8',
@@ -170,9 +170,13 @@ single_kitti_ged = ['--data-path', '/media/lucas/lucas-ds2-1tb/code/kitti',
                     '--batch-size','4',
                     '-c','l2']
 
-test_model = '/media/lucas/lucas-ds2-1tb/code/uncertainty_aware_sparse_to_dense_rnn/pretrain/visim.spl=500.mod=rgb-fd-bin.inp=rgbd.overall=dc1-cf1-ln1.dcnet=ged_depthcompnet.confnet=cbr3-c1.lossnet=ged_depthcompnet.crit=l1.div=0.lr=1e-05.lrs=5.bs=8.pre=dc_weights.time=2019-05-31@16-17-58/checkpoint-1.pth.tar'
+test_model = '/media/lucas/lucas-ds2-1tb/results-datasetv11/even_more/results/l1loss/visim.spl=500.mod=rgb-fd-bin.inp=rgbd.overall=dc1-cf1-ln1.dcnet=ged_depthcompnet.confnet=cbr3-c1.lossnet=ged_depthcompnet.crit=l1.div=0.lr=0.0001.lrs=5.bs=8.pre=.time=2019-06-01@01-28-58/model_best.pth.tar'
+#result_folder = '/media/lucas/lucas-ds2-1tb/results-datasetv11/even_more/results/gud-all-bad/visim.spl=500.mod=rgb-fd-bin.inp=rgbd.overall=dc1-cf1-ln1.dcnet=udepthcompnet18.confnet=cbr3-c1.lossnet=ged_depthcompnet.crit=l2.div=0.lr=1e-05.lrs=5.bs=8.pre=.time=2019-05-31@20-30-17/500'
 eval_s = '--evaluate /media/lucas/lucas-ds2-1tb/code/uncertainty_aware_sparse_to_dense_rnn/results/lucas_2019-05-27@02-47-20/model_best.pth.tar --data-path /media/lucas/lucas-ds2-1tb/dataset_small_v11'
-eval_conf_s = '--evaluate '+ test_model + ' --data-path /media/lucas/lucas-ds2-1tb/dataset_big_v11 --output /media/lucas/lucas-ds2-1tb/code/eval -pr --val-images 100'
+eval_conf_s = '-s 500 --evaluate '+ test_model + ' --data-path /media/lucas/lucas-ds2-1tb/dataset_big_v11 --output '+ test_model +'500 -pr --val-images 100'
+eval_nyc_conf_s = '--evaluate '+ test_model + ' --data-path /media/lucas/lucas-ds2-1tb/outro_nyc/nyudepthv2 --output '+ test_model +'500 -pr --val-images 50'
+eval_kitti_conf_s = '--evaluate '+ test_model + ' --data-type kitti --data-path /media/lucas/lucas-ds2-1tb/code/kitti --output /media/lucas/lucas-ds2-1tb/code/eval_kitti ' #-pr --val-images 50
+
 
 
 if __name__ == '__main__':
@@ -183,7 +187,7 @@ if __name__ == '__main__':
 
     if len(sys.argv) > 1 and sys.argv[1] == 'dummy':
         print('dummy arguments')
-        arg_list = single_ures
+        arg_list = eval_nyc_conf_s.split()
     else:
         print('using external arguments')
         arg_list = sys.argv[1:]
