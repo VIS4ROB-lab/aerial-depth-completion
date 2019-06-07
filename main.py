@@ -124,6 +124,14 @@ single_ged = ['--data-path', '/media/lucas/lucas-ds2-1tb/dataset_small_v11',
                     '--training-mode','dc1_only',
                     '-c','l2']
 
+single_gms = ['--data-path', '/media/lucas/lucas-ds2-1tb/dataset_small_v11',
+                    '-j','8',
+                    '-s','500',
+                    '--dcnet-arch','gms_depthcompnet',
+                    #'--dcnet-pretrained','/media/lucas/lucas-ds2-1tb/code/uncertainty_aware_sparse_to_dense_rnn/results/visim.spl=500.mod=rgb-fd-bin.inp=rgbd.overall=dc1_only.dcnet=ged_depthcompnet.confnet=cbr3-c1.lossnet=ged_depthcompnet.crit=l2.div=0.lr=0.0001.lrs=5.bs=8.pre=resnet.time=2019-05-27@22-31-42/model_best.pth.tar:dc_weights',
+                    '--training-mode','dc1_only',
+                    '-c','l1']
+
 single_ures = ['--data-path', '/media/lucas/lucas-ds2-1tb/dataset_small_v11',
                     '-j','8',
                     '-lr','0.00001',
@@ -133,14 +141,14 @@ single_ures = ['--data-path', '/media/lucas/lucas-ds2-1tb/dataset_small_v11',
                     '-c','l2']
 
 join_double_ged = ['--data-path', '/media/lucas/lucas-ds2-1tb/dataset_small_v11',
-                    '-j','0',
+                    '-j','8',
                     '--training-mode','dc1-ln1',
-                    '--dcnet-arch','ged_depthcompnet',
+                    '--dcnet-arch','gms_depthcompnet',
                     # '--dcnet-pretrained','/media/lucas/lucas-ds2-1tb/code/uncertainty_aware_sparse_to_dense_rnn/results/visim.spl=500.mod=rgb-fd-bin.inp=rgbd.overall=dc1_only.dcnet=ged_depthcompnet.confnet=cbr3-c1.lossnet=ged_depthcompnet.crit=l2.div=0.lr=0.0001.lrs=5.bs=8.pre=resnet.time=2019-05-27@22-31-42/model_best.pth.tar:dc_weights',
                     '--lossnet-arch', 'ged_depthcompnet',
                     '--lossnet-pretrained','/media/lucas/lucas-ds2-1tb/code/uncertainty_aware_sparse_to_dense_rnn/results/visim.spl=500.mod=rgb-fd-bin.inp=rgbd.overall=dc1_only.dcnet=ged_depthcompnet.confnet=cbr3-c1.lossnet=ged_depthcompnet.crit=l2.div=0.lr=0.0001.lrs=5.bs=8.pre=resnet.time=2019-05-27@22-31-42/model_best.pth.tar:dc_weights',
                    '--data-modality', 'rgb-fd-bin',
-                    '-c','absrel']
+                    '-c','l1']
 
 double_ged = ['--data-path', '/media/lucas/lucas-ds2-1tb/dataset_small_v11',
                     '-j','8',
@@ -158,7 +166,7 @@ double_ged_s = '--data-path /media/lucas/lucas-ds2-1tb/dataset_small_v11 ' \
                     '--training-mode dc1-cf1-ln1 '\
                     '--confnet-arch cbr3-cbr1-c1res '\
                     '--dcnet-arch ged_depthcompnet '\
-                    '--lossnet-arch ged_depthcompnet ' \
+                    '--lossnet-arch gms_depthcompnet ' \
                     '--output lucas ' \
                     '-c l2 '\
                     '--epochs 30 '
@@ -187,7 +195,7 @@ if __name__ == '__main__':
 
     if len(sys.argv) > 1 and sys.argv[1] == 'dummy':
         print('dummy arguments')
-        arg_list = eval_nyc_conf_s.split()
+        arg_list = join_double_ged
     else:
         print('using external arguments')
         arg_list = sys.argv[1:]

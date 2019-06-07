@@ -29,7 +29,7 @@ class ConfidenceDepthFrameworkFactory():
 
         else:
             if model_arch == 'gms_depthcompnet':
-                model = NconvMS(out_channels=len(output_type))
+                model = GMSNet(out_channels=len(output_type))
             elif model_arch == 'ged_depthcompnet':
                 model = GEDNet(out_channels=len(output_type))
             else:
@@ -510,6 +510,156 @@ class GEDNet(nn.Module):
 
         return depth, features
 
+
+class GMSNet(nn.Module):
+
+    def __init__(self,pos_fn='SoftPlus', out_channels=1):
+        super(GMSNet,self).__init__()
+
+        self.out_channels = out_channels
+
+        if out_channels == 2:
+            self.out_feature_channels = 1
+        else:
+            self.out_feature_channels = 50
+
+        # Import the unguided network
+        self.d_net = unguided_net(pos_fn)
+
+        self.d = nn.Sequential(
+            nn.Conv2d(1, 16, 3, 1, 1),
+            nn.ReLU(),
+            nn.Conv2d(16, 16, 3, 1, 1),
+            nn.ReLU(),
+            nn.Conv2d(16, 16, 3, 1, 1),
+            nn.ReLU(),
+            nn.Conv2d(16, 16, 3, 1, 1),
+            nn.ReLU(),
+            nn.Conv2d(16, 16, 3, 1, 1),
+            nn.ReLU(),
+            nn.Conv2d(16, 16, 3, 1, 1),
+            nn.ReLU(),
+            # nn.Conv2d(64,64,3,1,1),
+            # nn.ReLU(),
+            # nn.Conv2d(64,64,3,1,1),
+            # nn.ReLU(),
+            # nn.Conv2d(64,64,3,1,1),
+            # nn.ReLU(),
+            # nn.Conv2d(64,64,3,1,1),
+            # nn.ReLU()
+        )  # 11,664 Params
+
+        # RGB stream
+        self.rgb = nn.Sequential(
+            nn.Conv2d(4, 64, 3, 1, 1),
+            nn.ReLU(),
+            nn.Conv2d(64, 64, 3, 1, 1),
+            nn.ReLU(),
+            nn.Conv2d(64, 64, 3, 1, 1),
+            nn.ReLU(),
+            nn.Conv2d(64, 64, 3, 1, 1),
+            nn.ReLU(),
+            nn.Conv2d(64, 64, 3, 1, 1),
+            nn.ReLU(),
+            nn.Conv2d(64, 64, 3, 1, 1),
+            nn.ReLU(),
+            # nn.Conv2d(64,64,3,1,1),
+            # nn.ReLU(),
+            # nn.Conv2d(64,64,3,1,1),
+            # nn.ReLU(),
+            # nn.Conv2d(64,64,3,1,1),
+            # nn.ReLU(),
+            # nn.Conv2d(64,64,3,1,1),
+            # nn.ReLU()
+        )  # 186,624 Params
+
+        # Fusion stream
+        self.fuse = nn.Sequential(
+            nn.Conv2d(80, 64, 3, 1, 1),
+            nn.ReLU(),
+            nn.Conv2d(64, 64, 3, 1, 1),
+            nn.ReLU(),
+            nn.Conv2d(64, 64, 3, 1, 1),
+            nn.ReLU(),
+            nn.Conv2d(64, 32, 3, 1, 1),
+            nn.ReLU(),
+            nn.Conv2d(32, 32, 3, 1, 1),
+            nn.ReLU(),
+            nn.Conv2d(32, 32, 3, 1, 1),
+            nn.ReLU(),
+            # nn.Conv2d(64,64,3,1,1),
+            # nn.ReLU(),
+            # nn.Conv2d(64,64,3,1,1),
+            # nn.ReLU(),
+            # nn.Conv2d(64,64,3,1,1),
+            # nn.ReLU(),
+
+            # nn.Sigmoid()
+        )  # 156,704 Params
+
+        self.last_layer = nn.Conv2d(32, out_channels, 1, 1)
+
+        # Init Weights
+        for m in self.modules():
+            if isinstance(m, nn.Sequential):
+                for p in m:
+                    if isinstance(p, nn.Conv2d):
+                        nn.init.xavier_normal_(p.weight)
+                        nn.init.constant_(p.bias, 0.01)
+
+
+        nn.init.xavier_normal_(self.last_layer.weight)
+        nn.init.constant_(self.last_layer.bias, 0.01)
+
+        self.x0_d = []
+        self.xout_d = []
+        self.x0_rgb = []
+        self.xout_rgb = []
+        self.xf = []
+
+        self.c0 = []
+        self.cout_d = []
+
+    def forward(self, x0, build_conf_input):
+
+        assert x0.shape[1] > 3, "The input is not RGB-D or rgb-dc"
+
+        x0_rgb = x0[:, :3, :, :]
+        x0_d = x0[:, 3:4, :, :]
+
+        if x0.shape[1] == 4:
+            c0 = (x0_d > 0).float()
+        else:
+            c0 = x0[:, 4:5, :, :]
+
+        # Depth Network
+        xout_d, cout_d = self.d_net(x0_d, c0)
+
+        xout_d = self.d(xout_d)
+
+        self.xout_d = xout_d
+        self.cout_d = cout_d
+
+        # RGB network
+        xout_rgb = self.rgb(torch.cat((x0_rgb, cout_d), 1))
+        self.xout_rgb = xout_rgb
+
+        # Fusion Network
+        last_layer_input = self.fuse(torch.cat((xout_rgb, xout_d), 1))
+
+        xout = self.last_layer(last_layer_input)
+
+        if build_conf_input:
+            if self.out_channels == 1:
+                features = torch.cat((last_layer_input,xout_d, cout_d,xout), 1) # 32 + 2 + 1 + 1
+            else: #out_channels == 2
+                features = torch.sigmoid(xout[:,1:2,:,:]) #it is already the confidence
+        else:
+            features = None
+
+        depth = xout[:, 0:1, :, :]
+
+        return depth, features
 
 class NconvMS(nn.Module):
 
