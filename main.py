@@ -77,12 +77,14 @@ def main_func(args):
         cdfmodel,loss, epoch = trainer.resume(args.evaluate,cdf,True)
         output_directory = create_eval_output_folder(args)
         os.makedirs(output_directory)
+        print(output_directory)
         save_arguments(args,output_directory)
         trainer.validate(val_loader, cdfmodel, loss, epoch,print_frequency=args.print_freq,num_image_samples=args.val_images, output_folder=output_directory, conf_recall=args.pr)
         return
 
     output_directory = create_output_folder(args)
     os.makedirs(output_directory)
+    print(output_directory)
     save_arguments(args, output_directory)
 
     # optionally resume from a checkpoint
