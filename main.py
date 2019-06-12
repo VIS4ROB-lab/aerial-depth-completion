@@ -79,7 +79,7 @@ def main_func(args):
         os.makedirs(output_directory)
         print(output_directory)
         save_arguments(args,output_directory)
-        trainer.validate(val_loader, cdfmodel, loss, epoch,print_frequency=args.print_freq,num_image_samples=args.val_images, output_folder=output_directory, conf_recall=args.pr)
+        trainer.validate(val_loader, cdfmodel, loss, epoch,print_frequency=args.print_freq,num_image_samples=args.val_images, output_folder=output_directory, conf_recall=args.pr,conf_threshold= args.thrs)
         return
 
     output_directory = create_output_folder(args)
@@ -180,12 +180,12 @@ single_kitti_ged = ['--data-path', '/media/lucas/lucas-ds2-1tb/code/kitti',
                     '--batch-size','4',
                     '-c','l2']
 
-test_model = '/media/lucas/lucas-ds2-1tb/results-datasetv11/even_more/results/l1loss/visim.spl=500.mod=rgb-fd-bin.inp=rgbd.overall=dc1-cf1-ln1.dcnet=ged_depthcompnet.confnet=cbr3-c1.lossnet=ged_depthcompnet.crit=l1.div=0.lr=0.0001.lrs=5.bs=8.pre=.time=2019-06-01@01-28-58/model_best.pth.tar'
+test_model = '/media/lucas/lucas-ds2-1tb/results-datasetv11/even_more/results/l1loss/long_term-prel2_visim.spl=500.mod=rgb-fd-bin.inp=rgbd.overall=dc1-cf1-ln1.dcnet=ged_depthcompnet.confnet=cbr3-c1.lossnet=ged_depthcompnet.crit=l1.div=0.lr=1e-05.lrs=5.bs=8.pre=dc_weights.time=2019-06-06@17-20-10/model_best.pth.tar'
 #result_folder = '/media/lucas/lucas-ds2-1tb/results-datasetv11/even_more/results/gud-all-bad/visim.spl=500.mod=rgb-fd-bin.inp=rgbd.overall=dc1-cf1-ln1.dcnet=udepthcompnet18.confnet=cbr3-c1.lossnet=ged_depthcompnet.crit=l2.div=0.lr=1e-05.lrs=5.bs=8.pre=.time=2019-05-31@20-30-17/500'
 eval_s = '--evaluate /media/lucas/lucas-ds2-1tb/code/uncertainty_aware_sparse_to_dense_rnn/results/lucas_2019-05-27@02-47-20/model_best.pth.tar --data-path /media/lucas/lucas-ds2-1tb/dataset_small_v11'
-eval_conf_s = '-s 500 --evaluate '+ test_model + ' --data-path /media/lucas/lucas-ds2-1tb/dataset_big_v11 --output '+ test_model +'500 -pr --val-images 100'
-eval_nyc_conf_s = '--evaluate '+ test_model + ' --data-path /media/lucas/lucas-ds2-1tb/outro_nyc/nyudepthv2 --output '+ test_model +'500 -pr --val-images 50'
-eval_kitti_conf_s = '--evaluate '+ test_model + ' --data-type kitti --data-path /media/lucas/lucas-ds2-1tb/code/kitti --output /media/lucas/lucas-ds2-1tb/code/eval_kitti ' #-pr --val-images 50
+eval_conf_s = '--data-modality rgb-fd-bin -thrs 0 -s 500 --evaluate '+ test_model + ' --data-path /media/lucas/lucas-ds2-1tb/dataset_big_v11 --output '+ test_model +'500 --val-images 50'
+eval_nyc_conf_s = '--evaluate '+ test_model + ' --data-path /media/lucas/lucas-ds2-1tb/outro_nyc/nyudepthv2 --output '+ test_model +'500 -pr --val-images 4'
+eval_kitti_conf_s = '--evaluate '+ test_model + ' --data-type kitti --data-path /media/lucas/lucas-ds2-1tb/code/kitti --output '+ test_model +' --val-images 50' #-pr --val-images 50
 
 
 
@@ -197,7 +197,7 @@ if __name__ == '__main__':
 
     if len(sys.argv) > 1 and sys.argv[1] == 'dummy':
         print('dummy arguments')
-        arg_list = join_double_ged
+        arg_list = eval_conf_s.split()
     else:
         print('using external arguments')
         arg_list = sys.argv[1:]

@@ -7,14 +7,14 @@ def log10(x):
     return torch.log(x) / math.log(10)
 
 class Result(object):
-    def __init__(self):
+    def __init__(self,threshold=0):
         self.irmse, self.imae = 0, 0
         self.mse, self.rmse, self.mae = 0, 0, 0
         self.absrel, self.lg10 = 0, 0
         self.delta1, self.delta2, self.delta3 = 0, 0, 0
         self.data_time, self.gpu_time = 0, 0
         self.loss0, self.loss1,self.loss2 = 0, 0,0
-        self.threhold = 0
+        self.threshold = threshold # 0.18291457286432158
 
 
     def set_to_worst(self):
@@ -38,7 +38,7 @@ class Result(object):
         if confidence is None:
             valid_mask = target>0
         else:
-            valid_mask = (target>0) & (confidence > self.threhold)
+            valid_mask = (target>0) & (confidence > self.threshold)
         output = output[valid_mask]
         target = target[valid_mask]
 

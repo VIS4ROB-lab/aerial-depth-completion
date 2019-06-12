@@ -132,6 +132,9 @@ def create_command_parser():
     parser.add_argument('-pr', '--precision-recall', dest='pr', default=False, action='store_true',
                         help='calculate the pr')
 
+    parser.add_argument('-thrs', '--confidence-threshold', dest='thrs', default=0, type=float,
+                        help='confidence threshold')
+
     return parser
 
 
@@ -334,7 +337,7 @@ class ResultSampleImage():
 
 
 
-def validate(val_loader, model,criterion, epoch, num_image_samples=4, print_frequency=10, output_folder=None, conf_recall=False):
+def validate(val_loader, model,criterion, epoch,  num_image_samples=4, print_frequency=10, output_folder=None, conf_recall=False,conf_threshold=0):
     average_meter = [AverageMeter(), AverageMeter()]
 
     if conf_recall:
@@ -375,7 +378,7 @@ def validate(val_loader, model,criterion, epoch, num_image_samples=4, print_freq
             input[cb, 3:4, :, :] *= scale[cb]
 
         # measure accuracy and record loss
-        result = [Result(), Result()]
+        result = [Result(conf_threshold), Result(conf_threshold)]
         if prediction[1] is not None:
             result[0].evaluate(prediction[0][:, 0:1, :, :].data, target_depth.data,prediction[1][:, 0:1, :, :].data)
         else:

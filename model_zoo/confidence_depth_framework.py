@@ -651,7 +651,7 @@ class GMSNet(nn.Module):
 
         if build_conf_input:
             if self.out_channels == 1:
-                features = torch.cat((last_layer_input,xout_d, cout_d,xout), 1) # 32 + 2 + 1 + 1
+                features = torch.cat((last_layer_input,xout_d, cout_d,xout), 1) # 32 + 16 + 1 + 1
             else: #out_channels == 2
                 features = torch.sigmoid(xout[:,1:2,:,:]) #it is already the confidence
         else:
