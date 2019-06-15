@@ -1,15 +1,13 @@
+import glob
 import os
 import os.path
-import glob
-import fnmatch # pattern matching
+from random import choice
+
 import numpy as np
-from numpy import linalg as LA
-from  random import choice
-from PIL import Image
-import PIL.ImageOps
 import torch
 import torch.utils.data as data
-import cv2
+from PIL import Image
+
 from dataloaders import transforms_kitti as transforms
 
 input_options = ['d', 'rgb', 'rgbd', 'g', 'gd']

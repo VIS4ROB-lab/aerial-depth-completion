@@ -1,6 +1,8 @@
 import numpy as np
+
 import dataloaders.transforms as transforms
 from dataloaders.dataloader import MyDataloader
+
 
 class KITTIDataset(MyDataloader):
     def __init__(self, root, type, sparsifier=None, modality='rgb', arch='resnet18',depth_divider=1.0):

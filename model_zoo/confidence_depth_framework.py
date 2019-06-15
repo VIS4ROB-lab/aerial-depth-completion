@@ -1,11 +1,13 @@
+import os
+from collections import OrderedDict
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 from model_zoo.nconv_sd import CNN as unguided_net
 from model_zoo.s2d_resnet import S2DResNet
 from model_zoo.s2d_u_resnet import S2DUResNet
-from collections import OrderedDict
-import os
 
 
 class ConfidenceDepthFrameworkFactory():
