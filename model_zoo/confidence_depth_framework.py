@@ -317,10 +317,15 @@ class CBR3C1Confidence(nn.Module):
         init_weights(self.conv2)
 
     def forward(self, x):
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x = self.relu1(x)
-        x = self.conv2(x)
+        testing_unguided_confidence = False
+
+        if testing_unguided_confidence:
+            x = x [:, -2:-1, :, :]
+        else:
+            x = self.conv1(x)
+            x = self.bn1(x)
+            x = self.relu1(x)
+            x = self.conv2(x)
         return torch.sigmoid(x)
 
 

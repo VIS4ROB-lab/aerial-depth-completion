@@ -397,7 +397,7 @@ def validate(val_loader, model,criterion, epoch,  num_image_samples=4, print_fre
                 print_error('Val', num_total_samples, average_meter[1].average(), result[1],
                             criterion.loss, data_time, gpu_time, i, epoch)
 
-        if conf_recall and (i % 10 == 0):
+        if conf_recall and (i % 1 == 0):
             conf_avg_meter.evaluate(prediction[0][:, 0:1, :, :].data, prediction[1][:, 0:1, :, :].data, target_depth.data)
 
         rsi.update(i, input, prediction, target_depth)

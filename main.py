@@ -179,14 +179,31 @@ single_kitti_ged = ['--data-path', '/media/lucas/lucas-ds2-1tb/code/kitti',
                     '--dcnet-arch','ged_depthcompnet',
                     '--batch-size','4',
                     '-c','l2']
+dataset_cab = '/media/lucas/lucas-ds2-1tb/dataset/ethz-cab/rgbdh5'
+dataset_prd = '/media/lucas/lucas-ds2-1tb/dataset/probabilistic_reconstruction_data/dnnh5'
+dataset_aerial_nyc = '/media/lucas/lucas-ds2-1tb/dataset_big_v11'
+dataset_nyc = '/media/lucas/lucas-ds2-1tb/outro_nyc/nyudepthv2'
 
-test_model = '/media/lucas/lucas-ds2-1tb/results-datasetv11/even_more/results/l1loss/long_term-prel2_visim.spl=500.mod=rgb-fd-bin.inp=rgbd.overall=dc1-cf1-ln1.dcnet=ged_depthcompnet.confnet=cbr3-c1.lossnet=ged_depthcompnet.crit=l1.div=0.lr=1e-05.lrs=5.bs=8.pre=dc_weights.time=2019-06-06@17-20-10/model_best.pth.tar'
+model_aerialnyu_500_dconly = '/media/lucas/lucas-ds2-1tb/results-datasetv11/even_more/results/visim.spl=500.mod=rgb-fd-bin.inp=rgbd.overall=dc1_only.dcnet=ged_depthcompnet.confnet=cbr3-c1.lossnet=ged_depthcompnet.crit=l2.div=0.lr=0.0001.lrs=5.bs=8.pre=resnet.time=2019-05-27@22-31-42/model_best.pth.tar'
+model_aerialnyu_10k = '/media/lucas/lucas-ds2-1tb/results-datasetv11/even_more/results/10k_visim_test/bestvisim.spl=10000.mod=rgb-fd-bin.inp=rgbd.overall=dc1-cf1-ln1.dcnet=ged_depthcompnet.confnet=cbr3-c1.lossnet=ged_depthcompnet.crit=l1.div=0.lr=1e-05.lrs=5.bs=8.pre=dc_weights.time=2019-06-09@18-13-40/model_best.pth.tar'
+model_aerialnyu_500 = '/media/lucas/lucas-ds2-1tb/results-datasetv11/even_more/results/l1loss/bestvisim.spl=500.mod=rgb-fd-bin.inp=rgbd.overall=dc1-cf1-ln1.dcnet=ged_depthcompnet.confnet=cbr3-c1.lossnet=ged_depthcompnet.crit=l1.div=0.lr=0.0001.lrs=5.bs=8.pre=.time=2019-06-01@01-28-58/model_best.pth.tar'
+model_aerialnyu_500_long = '/media/lucas/lucas-ds2-1tb/results-datasetv11/even_more/results/l1loss/long_term-prel2_visim.spl=500.mod=rgb-fd-bin.inp=rgbd.overall=dc1-cf1-ln1.dcnet=ged_depthcompnet.confnet=cbr3-c1.lossnet=ged_depthcompnet.crit=l1.div=0.lr=1e-05.lrs=5.bs=8.pre=dc_weights.time=2019-06-06@17-20-10/model_best.pth.tar'
+model_aerial_500 = '/media/lucas/lucas-ds2-1tb/results-datasetv11/even_more/results/aerial_only/aerialvisim.spl=500.mod=rgb-fd-bin.inp=rgbd.overall=dc1-cf1-ln1.dcnet=ged_depthcompnet.confnet=cbr3-c1.lossnet=ged_depthcompnet.crit=l1.div=0.lr=0.0001.lrs=5.bs=8.pre=.time=2019-06-07@12-55-36/model_best.pth.tar'
+model_nyu_500 = '/media/lucas/lucas-ds2-1tb/results-datasetv11/even_more/results/nyu/nyu-l1/best_visim.spl=500.mod=rgb-fd-bin.inp=rgbd.overall=dc1-cf1-ln1.dcnet=ged_depthcompnet.confnet=cbr3-c1.lossnet=ged_depthcompnet.crit=l1.div=0.lr=1e-05.lrs=5.bs=8.pre=dc_weights.time=2019-06-09@16-36-19/model_best.pth.tar'
+model_kitti = '/media/lucas/lucas-ds2-1tb/results-datasetv11/even_more/results/kitti_test/kitti.spl=500.mod=rgb-fd-bin.inp=rgbd.overall=dc1-cf1-ln1.dcnet=ged_depthcompnet.confnet=cbr3-c1.lossnet=ged_depthcompnet.crit=l1.div=0.lr=0.0001.lrs=5.bs=8.pre=.time=2019-06-08@00-57-47/model_best.pth.tar'
+
 #result_folder = '/media/lucas/lucas-ds2-1tb/results-datasetv11/even_more/results/gud-all-bad/visim.spl=500.mod=rgb-fd-bin.inp=rgbd.overall=dc1-cf1-ln1.dcnet=udepthcompnet18.confnet=cbr3-c1.lossnet=ged_depthcompnet.crit=l2.div=0.lr=1e-05.lrs=5.bs=8.pre=.time=2019-05-31@20-30-17/500'
-eval_s = '--evaluate /media/lucas/lucas-ds2-1tb/code/uncertainty_aware_sparse_to_dense_rnn/results/lucas_2019-05-27@02-47-20/model_best.pth.tar --data-path /media/lucas/lucas-ds2-1tb/dataset_small_v11'
-eval_conf_s = '--data-modality rgb-fd-bin -thrs 0 -s 500 --evaluate '+ test_model + ' --data-path /media/lucas/lucas-ds2-1tb/dataset_big_v11 --output '+ test_model +'500 --val-images 50'
-eval_nyc_conf_s = '--evaluate '+ test_model + ' --data-path /media/lucas/lucas-ds2-1tb/outro_nyc/nyudepthv2 --output '+ test_model +'500 -pr --val-images 4'
-eval_kitti_conf_s = '--evaluate '+ test_model + ' --data-type kitti --data-path /media/lucas/lucas-ds2-1tb/code/kitti --output '+ test_model +' --val-images 50' #-pr --val-images 50
+dataset_path = dataset_prd
+samples_num = '500'
+test_model = model_aerialnyu_500
+output_folder = '/media/lucas/lucas-ds2-1tb/tmp/prd500_aerialnyu'
+eval_conf_si = '--divider 0 -pr --data-modality rgb-fd-bin -thrs 0 -s ' + samples_num + ' --evaluate ' + test_model + ' --data-path ' + dataset_path + ' --output ' + output_folder + '  --val-images 50'
 
+
+eval_s = '--evaluate /media/lucas/lucas-ds2-1tb/code/uncertainty_aware_sparse_to_dense_rnn/results/lucas_2019-05-27@02-47-20/model_best.pth.tar --data-path /media/lucas/lucas-ds2-1tb/dataset_small_v11'
+eval_conf_s = '--data-modality rgb-fd-bin -thrs 0 -s '+ samples_num + ' --evaluate '+ test_model + ' --data-path '+ dataset_path + ' --output '+ test_model +'500 --val-images 50'
+#eval_nyc_conf_s = '--evaluate '+ test_model + ' --data-path  --output '+ test_model +'500 -pr --val-images 4'
+eval_kitti_conf_s = '--evaluate '+ test_model + ' --data-type kitti --data-path /media/lucas/lucas-ds2-1tb/code/kitti --output '+ output_folder +' -pr --val-images 50' # --val-images 50
 
 
 if __name__ == '__main__':
@@ -197,7 +214,7 @@ if __name__ == '__main__':
 
     if len(sys.argv) > 1 and sys.argv[1] == 'dummy':
         print('dummy arguments')
-        arg_list = eval_conf_s.split()
+        arg_list = eval_conf_si.split()
     else:
         print('using external arguments')
         arg_list = sys.argv[1:]

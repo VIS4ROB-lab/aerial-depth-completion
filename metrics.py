@@ -101,7 +101,7 @@ class ConfidencePixelwiseAverageMeter(object):
 
 
 class ConfidencePixelwiseThrAverageMeter(object):
-    def __init__(self,num_bins=200,top= 0.7):
+    def __init__(self,num_bins=500,top= 1.0):# 200, top 0.7
         self.num_bins = num_bins
         self.thresholds = np.linspace(0, top, num_bins, endpoint=True)
         self.reset()
