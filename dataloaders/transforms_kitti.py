@@ -1,3 +1,6 @@
+# adapted from https://github.com/fangchangma/self-supervised-depth-completion
+#license MIT
+
 from __future__ import division
 import torch
 import math

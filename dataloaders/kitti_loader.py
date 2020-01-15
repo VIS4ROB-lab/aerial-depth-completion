@@ -1,3 +1,6 @@
+# adapted from https://github.com/fangchangma/self-supervised-depth-completion
+#license MIT
+
 import glob
 import os
 import os.path

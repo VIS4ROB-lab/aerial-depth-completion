@@ -1,3 +1,6 @@
+#adapted from https://github.com/fangchangma/sparse-to-dense.pytorch
+#license is not declared"
+
 from __future__ import division
 import torch
 import math

@@ -1,3 +1,6 @@
+#adapted from https://github.com/fangchangma/sparse-to-dense.pytorch
+#license is not declared"
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F

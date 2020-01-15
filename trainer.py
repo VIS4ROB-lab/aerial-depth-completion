@@ -1,5 +1,4 @@
 import os
-import sys
 import csv
 import time
 
@@ -10,8 +9,7 @@ import torch.backends.cudnn as cudnn
 cudnn.benchmark = True
 import GPUtilext
 import torch.optim
-from torchsummary import summary
-from metrics import AverageMeter, Result,ConfidencePixelwiseAverageMeter,ConfidencePixelwiseThrAverageMeter
+from metrics import AverageMeter, Result,ConfidencePixelwiseThrAverageMeter
 
 
 cudnn.benchmark = True
@@ -23,19 +21,14 @@ def create_command_parser():
     import argparse
 
     model_names = ['resnet18', 'udepthcompnet18','erfdepthcompnet','gms_depthcompnet','ged_depthcompnet','gudepthcompnet18']
-    model_input_type = ['rgb','rgbd','rgbdw'] #['d','dw','c','cd','cdw']
-    #image_type_source = ['g', 'rgb','undefined']
-    #sparse_depth_source = ['kgt','kor','kde','fd','undefined']
-    #sparse_conf_source = ['bin', 'kw','undefined']
+    model_input_type = ['rgb','rgbd','rgbdw']
     training_mode = ['dc1_only','dc1-ln0','dc1-ln1', 'dc0-cf1-ln0', 'dc1-cf1-ln0', 'dc0-cf1-ln1', 'dc1-cf1-ln1']
-    confnet_exclusive_names = ['cbr3-c1','cbr3-cbr1-c1', 'cbr3-cbr1-c1res' ]#'cbr3-cbr1-c1','cbr5-cbr3-cbr1-c1'
+    confnet_exclusive_names = ['cbr3-c1','cbr3-cbr1-c1', 'cbr3-cbr1-c1res' ]
     confnet_names = confnet_exclusive_names + ['join','none']
     data_modality_types = ['rgb-fd-bin','rgb-kfd-bin','rgb-kgt-bin','rgb-kor-bin','rgb-kor-kw']
-    #confnet_input_type = ['c','cd','cw','cdw','cdwr', 'cdwrl','cdr', 'cdrl', 'clr','lr'] #'c','cd','cw','cdw','cdwr', 'cdwrl','cdr', 'cdrl', 'clr'
 
     loss_names = ['l1', 'l2', 'il1', 'absrel']
     data_types = ['nyuv2', 'visim', 'visim_nyuv2', 'kitti' ]
-    #data_scale = ['per_frame', 'global', 'none']
 
     opt_names = ['sgd', 'adam']
     from dataloaders.dense_to_sparse import UniformSampling, SimulatedStereo

@@ -196,7 +196,7 @@ model_kitti = '/media/lucas/lucas-ds2-1tb/results-datasetv11/even_more/results/k
 dataset_path = dataset_prd
 samples_num = '500'
 test_model = model_aerialnyu_500
-output_folder = '/media/lucas/lucas-ds2-1tb/tmp/prd500_aerialnyu'
+output_folder = '/media/lucas/lucas-ds2-1tb/tmp/testme/prd500_aerialnyu_test'
 eval_conf_si = '--divider 0 -pr --data-modality rgb-fd-bin -thrs 0 -s ' + samples_num + ' --evaluate ' + test_model + ' --data-path ' + dataset_path + ' --output ' + output_folder + '  --val-images 50'
 
 
