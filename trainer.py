@@ -34,7 +34,7 @@ def create_command_parser():
     from dataloaders.dense_to_sparse import UniformSampling, SimulatedStereo
     sparsifier_names = [x.name for x in [UniformSampling, SimulatedStereo]]
 
-    parser = argparse.ArgumentParser(description='Confidence Depth Completion')
+    parser = argparse.ArgumentParser(description='Aerial Depth Completion')
 
     # training
     parser.add_argument('--output', metavar='FOLDER', default='',
