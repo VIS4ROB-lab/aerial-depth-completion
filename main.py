@@ -197,7 +197,7 @@ dataset_path = dataset_prd
 samples_num = '500'
 test_model = model_aerialnyu_500
 output_folder = '/media/lucas/lucas-ds2-1tb/tmp/testme/prd500_aerialnyu_test'
-eval_conf_si = '--divider 0 -pr --data-modality rgb-fd-bin -thrs 0 -s ' + samples_num + ' --evaluate ' + test_model + ' --data-path ' + dataset_path + ' --output ' + output_folder + '  --val-images 50'
+eval_conf_si = '--data-modality rgb-fd-bin -thrs 0 -s ' + samples_num + ' --evaluate ' + test_model + ' --data-path ' + dataset_path + ' --output ' + output_folder + '  --val-images 50'
 
 
 eval_s = '--evaluate /media/lucas/lucas-ds2-1tb/code/uncertainty_aware_sparse_to_dense_rnn/results/lucas_2019-05-27@02-47-20/model_best.pth.tar --data-path /media/lucas/lucas-ds2-1tb/dataset_small_v11'

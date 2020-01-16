@@ -20,7 +20,7 @@ def create_command_parser():
 
     import argparse
 
-    model_names = ['resnet18', 'udepthcompnet18','erfdepthcompnet','gms_depthcompnet','ged_depthcompnet','gudepthcompnet18']
+    model_names = ['resnet18', 'udepthcompnet18','gms_depthcompnet','ged_depthcompnet','gudepthcompnet18'] # ,erfdepthcompnet removed
     model_input_type = ['rgb','rgbd','rgbdw']
     training_mode = ['dc1_only','dc1-ln0','dc1-ln1', 'dc0-cf1-ln0', 'dc1-cf1-ln0', 'dc0-cf1-ln1', 'dc1-cf1-ln1']
     confnet_exclusive_names = ['cbr3-c1','cbr3-cbr1-c1', 'cbr3-cbr1-c1res' ]
@@ -28,7 +28,7 @@ def create_command_parser():
     data_modality_types = ['rgb-fd-bin','rgb-kfd-bin','rgb-kgt-bin','rgb-kor-bin','rgb-kor-kw']
 
     loss_names = ['l1', 'l2', 'il1', 'absrel']
-    data_types = ['nyuv2', 'visim', 'visim_nyuv2', 'kitti' ]
+    data_types = ['visim', 'visim_seq', 'kitti' ]
 
     opt_names = ['sgd', 'adam']
     from dataloaders.dense_to_sparse import UniformSampling, SimulatedStereo
@@ -37,8 +37,8 @@ def create_command_parser():
     parser = argparse.ArgumentParser(description='Aerial Depth Completion')
 
     # training
-    parser.add_argument('--output', metavar='FOLDER', default='',
-                        help='output folder')
+    parser.add_argument('--output', metavar='FOLDER', default='', help='output base folder')
+
     parser.add_argument('--training-mode', metavar='ARCH', default='dc1', choices=training_mode,
                         help='training_mode: ' + ' | '.join(training_mode) + ' (default: dc1)')
 
@@ -47,7 +47,7 @@ def create_command_parser():
                         help='model architecture: ' + ' | '.join(model_names) + ' (default: resnet18)')
 
     parser.add_argument('--dcnet-pretrained', default='', type=str, metavar='PATH',
-                        help='path to pretraining checkpoint (default: )')
+                        help='path to pretraining checkpoint (default: empty)')
 
     parser.add_argument('--dcnet-modality', metavar='MODALITY', default='rgbd', choices=model_input_type, type=str,
                         help='modality: ' + ' | '.join(model_input_type) + ' (default: rgbd)')
@@ -57,13 +57,13 @@ def create_command_parser():
                         help='model architecture: ' + ' | '.join(confnet_names) + ' (default: cbr3-c1)')
 
     parser.add_argument('--confnet-pretrained', default='', type=str, metavar='PATH',
-                        help='path to pretraining checkpoint (default: )')
+                        help='path to pretraining checkpoint (default: empty)')
     #lossnet
     parser.add_argument('--lossnet-arch', metavar='ARCH', default='ged_depthcompnet', choices=model_names,
                         help='model architecture: ' + ' | '.join(model_names) + ' (default: ged_depthcompnet)')
 
     parser.add_argument('--lossnet-pretrained', default='', type=str, metavar='PATH',
-                        help='path to pretraining checkpoint (default: )')
+                        help='path to pretraining checkpoint (default: empty)')
 
     #input data
     parser.add_argument('--data-type', metavar='DATA', default='visim',
@@ -107,13 +107,13 @@ def create_command_parser():
     parser.add_argument('-lrm', '--learning-rate-multiplicator', default=0.1, type=float, dest='lrm',
                         metavar='LRM', help='multiplicator (default 0.1)')
     parser.add_argument('--momentum', default=0, type=float, metavar='M',
-                        help='momentum')
+                        help='momentum (default: 0)')
     parser.add_argument('--weight-decay', '--wd', default=0, type=float,
                         metavar='W', help='weight decay (default: 0)')
 
     #output
     parser.add_argument('--val-images', default=10, type=int, metavar='N',
-                        help='number of images in the validation image (default: 40)')
+                        help='number of images in the validation image (default: 10)')
     parser.add_argument('--print-freq', '-p', default=10, type=int,
                         metavar='N', help='print frequency (default: 10)')
 
@@ -123,10 +123,10 @@ def create_command_parser():
     parser.add_argument('-e', '--evaluate', dest='evaluate', type=str, default='', metavar='PATH',
                         help='evaluate model on validation set (default: empty)')
     parser.add_argument('-pr', '--precision-recall', dest='pr', default=False, action='store_true',
-                        help='calculate the pr')
+                        help='calculate the precision recall table, might be necessary to ajust the bin and top size in the ConfidencePixelwiseThrAverageMeter class (default: false)')
 
     parser.add_argument('-thrs', '--confidence-threshold', dest='thrs', default=0, type=float,
-                        help='confidence threshold')
+                        help='confidence threshold (default: 0)')
 
     return parser
 

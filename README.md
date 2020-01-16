@@ -59,3 +59,41 @@ python3 main.py --evaluate [path_to_trained_model]
 
 #### Parameters
 
+Parameter | Description
+------------ | -------------
+  --help            | show this help message and exit
+  --output FOLDER       | output base folder
+  --training-mode ARCH  | this variable indicating the training mode. Our framework has up to tree parts the dc (depth completion net), the cf (confidence estimation net) and the ln (loss net). The number 0 or 1 indicates whether the network should be updated during the back-propagation. All the networks can be pre-load using other parameters. training_mode: dc1_only ; dc1-ln0 ; dc1-ln1 ; dc0-cf1-ln0 ; dc1-cf1-ln0 ; dc0-cf1-ln1 ; dc1-cf1-ln1 (default: dc1_only)
+  --dcnet-arch ARCH     | model architecture: resnet18 ; udepthcompnet18 ; gms_depthcompnet ; ged_depthcompnet ; gudepthcompnet18 (default: resnet18)
+  --dcnet-pretrained PATH | path to pretraining checkpoint for the dc net (default: empty)
+  --dcnet-modality MODALITY | modality: rgb ; rgbd ; rgbdw (default: rgbd)
+  --confnet-arch ARCH   | model architecture: cbr3-c1 ; cbr3-cbr1-c1 ; cbr3-cbr1-c1res ; join ; none (default: cbr3-c1)
+  --confnet-pretrained PATH | path to pretraining checkpoint for the cf net (default: empty)
+  --lossnet-arch ARCH   | model architecture: resnet18 ; udepthcompnet18 (uresnet18) ; gms_depthcompnet (nconv-ms) ; ged_depthcompnet (nconv-ed) ; gudepthcompnet18 (nconv-uresnet18) (default: ged_depthcompnet)
+  --lossnet-pretrained PATH | path to pretraining checkpoint for the ln net (default: empty)
+  --data-type DATA      | dataset: visim ; kitti (default: visim)
+  --data-path PATH      | path to data folder - this folder has to have inside a **val** folder and a **train** folder if it is not in evaluation mode.
+  --data-modality MODALITY | this field define the input modality in the format colour-depth-weight. kfd and fd mean random sampling in the ground-truth. kgt means keypoints from slam with depth from ground-truth. kor means keypoints from SLAM with depth from the landmark. The weight can be binary (bin) or from the uncertanty from slam (kw). The parameter can be one of the following: rgb-fd-bin ; rgb-kfd-bin ; rgb-kgt-bin ; rgb-kor-bin ; rgb-kor-kw (default: rgb-fd-bin)
+  --workers N     | number of data loading workers (default: 10)
+  --epochs N            | number of total epochs to run (default: 15)
+  --max-gt-depth D      | cut-off depth of ground truth, negative values means infinity (default: inf [m])
+  --min-depth D         | cut-off depth of sparsifier (default: 0 [m])
+  --max-depth D         | cut-off depth of sparsifier, negative values means infinity (default: inf [m])
+  --divider D           | Normalization factor - zero means per frame (default: 0 [m])
+  --num-samples N | number of sparse depth samples (default: 500)
+  --sparsifier SPARSIFIER | sparsifier: uar ; sim_stereo (default: uar)
+  --criterion LOSS | loss function: l1 ; l2 ; il1 (inverted L1) ; absrel (default: l1)
+  --optimizer OPTIMIZER | Optimizer: sgd ; adam (default: adam)
+  --batch-size BATCH_SIZE | mini-batch size (default: 8)
+  --learning-rate LR | initial learning rate (default 0.001)
+  --learning-rate-step LRS | number of epochs between reduce the learning rate by 10 (default: 5)
+  --learning-rate-multiplicator LRM | multiplicator (default 0.1)
+  --momentum M          | momentum (default: 0)
+  --weight-decay W | weight decay (default: 0)
+  --val-images N        | number of images in the validation image (default: 10)
+  --print-freq N  | print frequency (default: 10)
+  --resume PATH         | path to latest checkpoint (default: empty)
+  --evaluate PATH | evaluates the model on validation set, all the training parameters will be ignored, but the input parameters still matters (default: empty)
+  --precision-recall | enables the calculation of precision recall table, might be necessary to ajust the bin and top values in the ConfidencePixelwiseThrAverageMeter class. The result table shows for each confidence threshold the error and the density (default:false)
+  --confidence-threshold VALUE | confidence threshold , the best way to select this number is create the precision-recall table. (default: 0)
+
