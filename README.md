@@ -1,4 +1,4 @@
-#Aerial Depth Completion
+# Aerial Depth Completion
 
 This work is described in the letter "Aerial Single-View Depth Completion with Image-Guided Uncertainty Estimation", by Lucas Teixeira, Martin R.
 Oswald, Marc Pollefeys, Margarita Chli, published in the IEEE
@@ -22,11 +22,11 @@ If you use this Code or Dataset, please cite the following publication:
 ```
 
 #### Acknowledgment:
-The authors thanks @github/fangchangma and @github/abdo-eldesokey for sharing their code that is partially used here. The authors also thanks the owner of the 3D models used to build the dataset. They are identified in each 3D model file.
+The authors thanks [Fangchang Ma](https://github.com/fangchangma) and [Abdelrahman Eldesokey](https://github.com/abdo-eldesokey) for sharing their code that is partially used here. The authors also thanks the owner of the 3D models used to build the dataset. They are identified in each 3D model file.
 
 -----------------------------------------------------------------------
 
-###Prerequisites
+### Prerequisites
 
 #### Packages
 * PyTorch 1.0.1
@@ -45,13 +45,13 @@ The authors thanks @github/fangchangma and @github/abdo-eldesokey for sharing th
 
 ### Running the code
 
-####Testing  Example
+#### Testing  Example
 
 ```bash
 python3 main.py --evaluate "/media/lucas/lucas-ds2-1tb/tmp/model_best.pth.tar" --data-path "/media/lucas/lucas-ds2-1tb/dataset_big_v12"
 ```
 
-####Training Example
+#### Training Example
 
 ```bash
 python3 main.py --data-path "/media/lucas/lucas-ds2-1tb/dataset_big_v12" --workers 8 -lr 0.00001 --batch-size 1 --dcnet-arch gudepthcompnet18 --training-mode dc1_only --criterion l2
