@@ -1,4 +1,4 @@
-# Aerial Depth Completion
+# Aerial Depth Completion - Under Construction
 
 This work is described in the letter "Aerial Single-View Depth Completion with Image-Guided Uncertainty Estimation", by Lucas Teixeira, Martin R.
 Oswald, Marc Pollefeys, Margarita Chli, published in the IEEE
