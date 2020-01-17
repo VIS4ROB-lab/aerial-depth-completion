@@ -37,7 +37,7 @@ def create_command_parser():
     parser = argparse.ArgumentParser(description='Aerial Depth Completion')
 
     # training
-    parser.add_argument('--output', metavar='FOLDER', default='', help='output base folder')
+    parser.add_argument('--output', metavar='FOLDER', default='', help='output basename in the subfolder results')
 
     parser.add_argument('--training-mode', metavar='ARCH', default='dc1', choices=training_mode,
                         help='training_mode: ' + ' | '.join(training_mode) + ' (default: dc1)')

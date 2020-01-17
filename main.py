@@ -212,12 +212,7 @@ if __name__ == '__main__':
         trainer.create_command_parser().print_help()
         exit(0)
 
-    if len(sys.argv) > 1 and sys.argv[1] == 'dummy':
-        print('dummy arguments')
-        arg_list = eval_conf_si.split()
-    else:
-        print('using external arguments')
-        arg_list = sys.argv[1:]
+    arg_list = sys.argv[1:]
 
     arg_parser = trainer.create_command_parser()
     args = arg_parser.parse_args(arg_list)

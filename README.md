@@ -45,16 +45,20 @@ The authors thanks @github/fangchangma and @github/abdo-eldesokey for sharing th
 
 ### Running the code
 
-####Testing
+####Testing  Example
 
 ```bash
-python3 main.py --evaluate [path_to_trained_model]
+python3 main.py --evaluate "/media/lucas/lucas-ds2-1tb/tmp/model_best.pth.tar" --data-path "/media/lucas/lucas-ds2-1tb/dataset_big_v12"
 ```
 
-####Training
+####Training Example
 
 ```bash
-python3 main.py --evaluate [path_to_trained_model]
+python3 main.py --data-path "/media/lucas/lucas-ds2-1tb/dataset_big_v12" --workers 8 -lr 0.00001 --batch-size 1 --dcnet-arch gudepthcompnet18 --training-mode dc1_only --criterion l2
+```
+
+```bash
+python3 main.py --data-path "/media/lucas/lucas-ds2-1tb/dataset_big_v12" --workers 8 --criterion l2 --training-mode dc0-cf1-ln1 --dcnet-arch ged_depthcompnet --dcnet-pretrained /media/lucas/lucas-ds2-1tb/tmp/model_best.pth.tar:dc_weights --confnet-arch cbr3-c1 --confnet-pretrained /media/lucas/lucas-ds2-1tb/tmp/model_best.pth.tar:conf_weights --lossnet-arch ged_depthcompnet --lossnet-pretrained /media/lucas/lucas-ds2-1tb/tmp/model_best.pth.tar:lossdc_weights
 ```
 
 #### Parameters
@@ -62,15 +66,15 @@ python3 main.py --evaluate [path_to_trained_model]
 Parameter | Description
 ------------ | -------------
   --help            | show this help message and exit
-  --output FOLDER       | output base folder
+  --output NAME       | output base name in the subfolder results
   --training-mode ARCH  | this variable indicating the training mode. Our framework has up to tree parts the dc (depth completion net), the cf (confidence estimation net) and the ln (loss net). The number 0 or 1 indicates whether the network should be updated during the back-propagation. All the networks can be pre-load using other parameters. training_mode: dc1_only ; dc1-ln0 ; dc1-ln1 ; dc0-cf1-ln0 ; dc1-cf1-ln0 ; dc0-cf1-ln1 ; dc1-cf1-ln1 (default: dc1_only)
   --dcnet-arch ARCH     | model architecture: resnet18 ; udepthcompnet18 ; gms_depthcompnet ; ged_depthcompnet ; gudepthcompnet18 (default: resnet18)
-  --dcnet-pretrained PATH | path to pretraining checkpoint for the dc net (default: empty)
+  --dcnet-pretrained PATH | path to pretraining checkpoint for the dc net (default: empty). Each checkpoint can have multiple network. So it is necessary to define each one. the format is **path:network_name**. network_name can be: dc_weights, conf_weights, lossdc_weights. 
   --dcnet-modality MODALITY | modality: rgb ; rgbd ; rgbdw (default: rgbd)
   --confnet-arch ARCH   | model architecture: cbr3-c1 ; cbr3-cbr1-c1 ; cbr3-cbr1-c1res ; join ; none (default: cbr3-c1)
-  --confnet-pretrained PATH | path to pretraining checkpoint for the cf net (default: empty)
+  --confnet-pretrained PATH | path to pretraining checkpoint for the cf net (default: empty). Each checkpoint can have multiple network. So it is necessary to define each one. the format is **path:network_name**. network_name can be: dc_weights, conf_weights, lossdc_weights.
   --lossnet-arch ARCH   | model architecture: resnet18 ; udepthcompnet18 (uresnet18) ; gms_depthcompnet (nconv-ms) ; ged_depthcompnet (nconv-ed) ; gudepthcompnet18 (nconv-uresnet18) (default: ged_depthcompnet)
-  --lossnet-pretrained PATH | path to pretraining checkpoint for the ln net (default: empty)
+  --lossnet-pretrained PATH | path to pretraining checkpoint for the ln net (default: empty). Each checkpoint can have multiple network. So it is necessary to define each one. the format is **path:network_name**. network_name can be: dc_weights, conf_weights, lossdc_weights.
   --data-type DATA      | dataset: visim ; kitti (default: visim)
   --data-path PATH      | path to data folder - this folder has to have inside a **val** folder and a **train** folder if it is not in evaluation mode.
   --data-modality MODALITY | this field define the input modality in the format colour-depth-weight. kfd and fd mean random sampling in the ground-truth. kgt means keypoints from slam with depth from ground-truth. kor means keypoints from SLAM with depth from the landmark. The weight can be binary (bin) or from the uncertanty from slam (kw). The parameter can be one of the following: rgb-fd-bin ; rgb-kfd-bin ; rgb-kgt-bin ; rgb-kor-bin ; rgb-kor-kw (default: rgb-fd-bin)
