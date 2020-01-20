@@ -47,6 +47,9 @@ Several trained models are available - [here](https://datasets.v4rl.ethz.ch/data
 * CAB Dataset - [link](https://datasets.v4rl.ethz.ch/datasets/ral20-cab/)
 * PVS Dataset - [link](https://datasets.v4rl.ethz.ch/datasets/ral20-pvs/)
 
+#### Simulator
+The Aerial Dataset was created using this simulator [link](https://github.com/VIS4ROB-lab/visensor_simulator)
+
 ### Running the code
 
 #### Testing  Example
