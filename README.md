@@ -4,11 +4,11 @@ This work is described in the letter "Aerial Single-View Depth Completion with I
 Oswald, Marc Pollefeys, Margarita Chli, published in the IEEE
 Robotics and Automation Letters (RA-L) [IEEE link](https://doi.org/10.1109/LRA.2020.2967296).
 
-#### Video:
+### Video:
 <a href="https://www.youtube.com/embed/IzfFNlYCFHM" target="_blank"><img src="http://img.youtube.com/vi/IzfFNlYCFHM/0.jpg" 
 alt="Mesh" width="240" height="180" border="10" /></a>
 
-#### Citations:
+### Citations:
 If you use this Code or Aerial Dataset, please cite the following publication:
 
 ```
@@ -27,20 +27,13 @@ Please also cite their authors properly in case of use.
 
 
 #### Acknowledgment:
-The authors thanks [Fangchang Ma](https://github.com/fangchangma) and [Abdelrahman Eldesokey](https://github.com/abdo-eldesokey) for sharing their code that is partially used here. The authors also thanks the owner of the 3D models used to build the dataset. They are identified in each 3D model file.
+The authors thank [Fangchang Ma](https://github.com/fangchangma) and [Abdelrahman Eldesokey](https://github.com/abdo-eldesokey) for sharing their code that is partially used here. The authors also thanks the owner of the 3D models used to build the dataset. They are identified in each 3D model file.
 
------------------------------------------------------------------------
-
-### Prerequisites
-
-#### Packages
-* PyTorch 1.0.1
-* Python 3.6
-* Plus dependencies
+### Data and Simulator
 
 #### Trained Models
 
-Several trained models are available - [here](https://datasets.v4rl.ethz.ch/datasets/ral20-models/)
+Several trained models are available - [here](https://datasets.v4rl.ethz.ch/datasets/ral20-models/).
 
 #### Datasets
 * Aerial+NYUv2 Dataset - [link](https://datasets.v4rl.ethz.ch/datasets/ral20-SynDepthInspection/)
@@ -48,9 +41,19 @@ Several trained models are available - [here](https://datasets.v4rl.ethz.ch/data
 * PVS Dataset - [link](https://datasets.v4rl.ethz.ch/datasets/ral20-pvs/)
 
 #### Simulator
-The Aerial Dataset was created using this simulator [link](https://github.com/VIS4ROB-lab/visensor_simulator)
+The Aerial Dataset was created using this simulator [link](https://github.com/VIS4ROB-lab/visensor_simulator).
+
+-----------------------------------------------------------------------
+
+
+
 
 ### Running the code
+
+#### Prerequisites
+* PyTorch 1.0.1
+* Python 3.6
+* Plus dependencies
 
 #### Testing  Example
 
