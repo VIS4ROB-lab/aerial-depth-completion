@@ -1,15 +1,15 @@
-# Aerial Depth Completion - Under Construction
+# Aerial Depth Completion
 
 This work is described in the letter "Aerial Single-View Depth Completion with Image-Guided Uncertainty Estimation", by Lucas Teixeira, Martin R.
 Oswald, Marc Pollefeys, Margarita Chli, published in the IEEE
-Robotics and Automation Letters (RA-L) (to appear).
+Robotics and Automation Letters (RA-L) [IEEE link](https://doi.org/10.1109/LRA.2020.2967296).
 
 #### Video:
 <a href="https://www.youtube.com/embed/IzfFNlYCFHM" target="_blank"><img src="http://img.youtube.com/vi/IzfFNlYCFHM/0.jpg" 
 alt="Mesh" width="240" height="180" border="10" /></a>
 
 #### Citations:
-If you use this Code or Dataset, please cite the following publication:
+If you use this Code or Aerial Dataset, please cite the following publication:
 
 ```
 @article{Teixeira:etal:RAL2020,
@@ -20,6 +20,11 @@ If you use this Code or Dataset, please cite the following publication:
     year    = {2020}
 }
 ```
+NYUv2, CAB and PVS datasets require further citation from their authors. 
+During our research, we reformat and created ground-truth depth for the CAB and PVS datasets. 
+This code also contains thirt-party networks used for comparison. 
+Please also cite their authors properly in case of use. 
+
 
 #### Acknowledgment:
 The authors thanks [Fangchang Ma](https://github.com/fangchangma) and [Abdelrahman Eldesokey](https://github.com/abdo-eldesokey) for sharing their code that is partially used here. The authors also thanks the owner of the 3D models used to build the dataset. They are identified in each 3D model file.
@@ -35,13 +40,12 @@ The authors thanks [Fangchang Ma](https://github.com/fangchangma) and [Abdelrahm
 
 #### Trained Models
 
-**PVS Dataset** - [Bagfile](https://drive.google.com/open?id=0B82ekrhU9sDmTTdIeFJXTlBBLVE)
+Several trained models are available - [here](https://datasets.v4rl.ethz.ch/datasets/ral20-models/)
 
 #### Datasets
-
-**Aerial+NYUv2 Dataset** - [Bagfile](https://drive.google.com/open?id=0B82ekrhU9sDmTTdIeFJXTlBBLVE)
-**CAB Dataset** - [Bagfile](https://drive.google.com/open?id=0B82ekrhU9sDmTTdIeFJXTlBBLVE)
-**PVS Dataset** - [Bagfile](https://drive.google.com/open?id=0B82ekrhU9sDmTTdIeFJXTlBBLVE)
+* Aerial+NYUv2 Dataset - [link](https://datasets.v4rl.ethz.ch/datasets/ral20-SynDepthInspection/)
+* CAB Dataset - [link](https://datasets.v4rl.ethz.ch/datasets/ral20-cab/)
+* PVS Dataset - [link](https://datasets.v4rl.ethz.ch/datasets/ral20-pvs/)
 
 ### Running the code
 
