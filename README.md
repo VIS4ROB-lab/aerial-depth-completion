@@ -46,6 +46,8 @@ To be used together by our code, the datasets need to be merged, this means that
 #### Simulator
 The Aerial Dataset was created using this simulator [link](https://github.com/VIS4ROB-lab/visensor_simulator).
 
+#### 3D Models
+ Available soon
 
 ### Running the code
 
