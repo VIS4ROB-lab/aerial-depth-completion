@@ -2,7 +2,7 @@
 
 This work is described in the letter "Aerial Single-View Depth Completion with Image-Guided Uncertainty Estimation", by Lucas Teixeira, Martin R.
 Oswald, Marc Pollefeys, Margarita Chli, published in the IEEE
-Robotics and Automation Letters (RA-L) [IEEE link](https://doi.org/10.1109/LRA.2020.2967296).
+Robotics and Automation Letters (RA-L / ICRA) [IEEE link](https://doi.org/10.1109/LRA.2020.2967296).
 
 ### Video:
 <a href="https://www.youtube.com/embed/IzfFNlYCFHM" target="_blank"><img src="http://img.youtube.com/vi/IzfFNlYCFHM/0.jpg" 
