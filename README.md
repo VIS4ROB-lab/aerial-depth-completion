@@ -2,14 +2,14 @@
 
 This work is described in the letter "Aerial Single-View Depth Completion with Image-Guided Uncertainty Estimation", by Lucas Teixeira, Martin R.
 Oswald, Marc Pollefeys, Margarita Chli, published in the IEEE
-Robotics and Automation Letters (RA-L) (to appear).
+Robotics and Automation Letters (RA-L / ICRA) [ETHZ Library link](https://doi.org/10.3929/ethz-b-000392181).
 
-#### Video:
+### Video:
 <a href="https://www.youtube.com/embed/IzfFNlYCFHM" target="_blank"><img src="http://img.youtube.com/vi/IzfFNlYCFHM/0.jpg" 
 alt="Mesh" width="240" height="180" border="10" /></a>
 
-#### Citations:
-If you use this Code or Dataset, please cite the following publication:
+### Citations:
+If you use this Code or Aerial Dataset, please cite the following publication:
 
 ```
 @article{Teixeira:etal:RAL2020,
@@ -20,30 +20,41 @@ If you use this Code or Dataset, please cite the following publication:
     year    = {2020}
 }
 ```
+NYUv2, CAB and PVS datasets require further citation from their authors. 
+During our research, we reformat and created ground-truth depth for the CAB and PVS datasets. 
+This code also contains thirt-party networks used for comparison. 
+Please also cite their authors properly in case of use. 
+
 
 #### Acknowledgment:
-The authors thanks [Fangchang Ma](https://github.com/fangchangma) and [Abdelrahman Eldesokey](https://github.com/abdo-eldesokey) for sharing their code that is partially used here. The authors also thanks the owner of the 3D models used to build the dataset. They are identified in each 3D model file.
+The authors thank [Fangchang Ma](https://github.com/fangchangma) and [Abdelrahman Eldesokey](https://github.com/abdo-eldesokey) for sharing their code that is partially used here. The authors also thanks the owner of the 3D models used to build the dataset. They are identified in each 3D model file.
 
------------------------------------------------------------------------
-
-### Prerequisites
-
-#### Packages
-* PyTorch 1.0.1
-* Python 3.6
-* Plus dependencies
+### Data and Simulator
 
 #### Trained Models
 
-**PVS Dataset** - [Bagfile](https://drive.google.com/open?id=0B82ekrhU9sDmTTdIeFJXTlBBLVE)
+Several trained models are available - [here](https://datasets.v4rl.ethz.ch/datasets/ral20-models/).
 
 #### Datasets
+* Aerial Dataset - [link](https://zenodo.org/record/3614761)
+* NYUv2 Dataset - [link](http://datasets.lids.mit.edu/sparse-to-dense/data/nyudepthv2.tar.gz) (preprocessed by Fangchang Ma and originally from [Silberman et al. ECCV12](http://cs.nyu.edu/~silberman/datasets/nyu_depth_v2.html))
+* CAB Dataset - [link](https://datasets.v4rl.ethz.ch/datasets/ral20-cab/) (In this work, we created the depth information for the dataset originally published in [Teixeira and Chli IROS16](https://github.com/VIS4ROB-lab/mesh_based_mapping))
+* PVS Dataset - [link](https://datasets.v4rl.ethz.ch/datasets/ral20-pvs/) (In this work, we created the depth information for the dataset originally published in [Restrepo et al. P&RS14](https://www.sciencedirect.com/science/article/pii/S0924271614002354))
 
-**Aerial+NYUv2 Dataset** - [Bagfile](https://drive.google.com/open?id=0B82ekrhU9sDmTTdIeFJXTlBBLVE)
-**CAB Dataset** - [Bagfile](https://drive.google.com/open?id=0B82ekrhU9sDmTTdIeFJXTlBBLVE)
-**PVS Dataset** - [Bagfile](https://drive.google.com/open?id=0B82ekrhU9sDmTTdIeFJXTlBBLVE)
+To be used together by our code, the datasets need to be merged, this means that the content of the **train** folder of each dataset need to be place in a single **train** folder. The same happens with the **eval** folder.
+
+#### Simulator
+The Aerial Dataset was created using this simulator [link](https://github.com/VIS4ROB-lab/visensor_simulator).
+
+#### 3D Models
+ Available soon
 
 ### Running the code
+
+#### Prerequisites
+* PyTorch 1.0.1
+* Python 3.6
+* Plus dependencies
 
 #### Testing  Example
 
@@ -100,4 +111,9 @@ Parameter | Description
   --evaluate PATH | evaluates the model on validation set, all the training parameters will be ignored, but the input parameters still matters (default: empty)
   --precision-recall | enables the calculation of precision recall table, might be necessary to ajust the bin and top values in the ConfidencePixelwiseThrAverageMeter class. The result table shows for each confidence threshold the error and the density (default:false)
   --confidence-threshold VALUE | confidence threshold , the best way to select this number is create the precision-recall table. (default: 0)
+
+-----------------------------------------------------------------------
+
+#### Contact
+In case of any issue, fell free to contact me via email lteixeira at mavt.ethz.ch.
 
