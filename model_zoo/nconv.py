@@ -20,7 +20,7 @@ class NConv2d(_ConvNd):
     def __init__(self, in_channels, out_channels, kernel_size, pos_fn='softplus', init_method='k', stride=1, padding=0, dilation=1, groups=1, bias=True):
         
         # Call _ConvNd constructor
-        super(NConv2d, self).__init__(in_channels, out_channels, kernel_size, stride, padding, dilation, False, 0, groups, bias)
+        super(NConv2d, self).__init__(in_channels, out_channels, kernel_size, stride, padding, dilation, False, 0, groups, bias,'zeros')
         
         self.eps = 1e-20
         self.pos_fn = pos_fn
