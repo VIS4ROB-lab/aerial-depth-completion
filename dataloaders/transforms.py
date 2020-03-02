@@ -340,11 +340,13 @@ class Resize(object):
 
         img_size = img.shape
         final_size = (round(self.size * img_size[1]),round(self.size * img_size[0]))
-        #print(final_size)
+
         if img.ndim == 3:
-            return np.array(Image.fromarray(img).resize(final_size, self.interpolation))
+            result = np.array(Image.fromarray(img).resize(final_size, self.interpolation))
+            return result
         elif img.ndim == 2:
-            return np.array(Image.fromarray(img, 'F').resize(final_size, self.interpolation)) #img.resize(self.size, PIL.Image.NEAREST, 'F')
+            result = np.array(Image.fromarray(img, 'F').resize(final_size, self.interpolation))
+            return result
         else:
             RuntimeError('img should be ndarray with 2 or 3 dimensions. Got {}'.format(img.ndim))
 
