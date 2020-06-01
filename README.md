@@ -33,7 +33,7 @@ The authors thank [Fangchang Ma](https://github.com/fangchangma) and [Abdelrahma
 
 #### Trained Models
 
-Several trained models are available - [here](https://datasets.v4rl.ethz.ch/datasets/ral20-models/).
+Several trained models are available - [here](https://drive.google.com/drive/folders/1D6HYo5OX0V2PAO1m2YdTsPQbGiizbhgj?usp=sharing).
 
 #### Datasets
 * Aerial Dataset - [link](https://zenodo.org/record/3614761)
