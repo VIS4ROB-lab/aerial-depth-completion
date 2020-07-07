@@ -47,7 +47,7 @@ To be used together by our code, the datasets need to be merged, this means that
 The Aerial Dataset was created using this simulator [link](https://github.com/VIS4ROB-lab/visensor_simulator).
 
 #### 3D Models
- Most of the 3D models used to create the dataset.[link](https://www.polybox.ethz.ch/index.php/s/ix5FRRmi2gE8XrA) In the license files contain the authors of the 3D models. Some models were extended with a satellite image from Google Earth.
+ Most of the 3D models used to create the dataset can be download [here](https://www.polybox.ethz.ch/index.php/s/ix5FRRmi2gE8XrA). In the license files contain the authors of the 3D models. Some models were extended with a satellite image from Google Earth.
 
 ### Running the code
 
