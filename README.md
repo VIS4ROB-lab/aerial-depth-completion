@@ -8,6 +8,10 @@ Robotics and Automation Letters (RA-L / ICRA) [ETHZ Library link](https://doi.or
 <a href="https://www.youtube.com/embed/IzfFNlYCFHM" target="_blank"><img src="http://img.youtube.com/vi/IzfFNlYCFHM/0.jpg" 
 alt="Mesh" width="240" height="180" border="10" /></a>
 
+### Presentation:
+<a href="https://www.youtube.com/embed/k2WH1WlYHKc" target="_blank"><img src="http://img.youtube.com/vi/k2WH1WlYHKc/0.jpg" 
+alt="Mesh" width="240" height="180" border="10" /></a>
+
 ### Citations:
 If you use this Code or Aerial Dataset, please cite the following publication:
 
