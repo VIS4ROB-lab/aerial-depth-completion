@@ -42,8 +42,8 @@ Several trained models are available - [here](https://drive.google.com/drive/fol
 #### Datasets
 * Aerial Dataset - [link](https://zenodo.org/record/3614761)
 * NYUv2 Dataset - [link](http://datasets.lids.mit.edu/sparse-to-dense/data/nyudepthv2.tar.gz) (preprocessed by Fangchang Ma and originally from [Silberman et al. ECCV12](http://cs.nyu.edu/~silberman/datasets/nyu_depth_v2.html))
-* CAB Dataset - [link](https://datasets.v4rl.ethz.ch/datasets/ral20-cab/) (In this work, we created the depth information for the dataset originally published in [Teixeira and Chli IROS16](https://github.com/VIS4ROB-lab/mesh_based_mapping))
-* PVS Dataset - [link](https://datasets.v4rl.ethz.ch/datasets/ral20-pvs/) (In this work, we created the depth information for the dataset originally published in [Restrepo et al. P&RS14](https://www.sciencedirect.com/science/article/pii/S0924271614002354))
+* CAB Dataset - on request (In this work, we created the depth information for the dataset originally published in [Teixeira and Chli IROS16](https://github.com/VIS4ROB-lab/mesh_based_mapping))
+* PVS Dataset - on request (In this work, we created the depth information for the dataset originally published in [Restrepo et al. P&RS14](https://www.sciencedirect.com/science/article/pii/S0924271614002354))
 
 To be used together by our code, the datasets need to be merged, this means that the content of the **train** folder of each dataset need to be place in a single **train** folder. The same happens with the **eval** folder.
 
